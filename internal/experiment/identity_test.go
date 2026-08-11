@@ -42,3 +42,15 @@ func TestNestedSampling(t *testing.T) {
 		}
 	}
 }
+
+func TestAllEligibleStage(t *testing.T) {
+	plan, err := BuildStagePlanWithPersona([]byte("seed"), "run", "100", 1, 0, 20, PhaseMeasured, "all-eligible")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, request := range plan.Requests {
+		if !request.International || request.Branch != Candidate {
+			t.Fatal(request)
+		}
+	}
+}

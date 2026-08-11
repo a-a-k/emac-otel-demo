@@ -2,8 +2,8 @@
 set -euo pipefail
 
 test "$(git -C third_party/opentelemetry-demo rev-parse HEAD)" = 1755859a9de82c2e5e225be68abc401a5ebf2b4f
-test "$(git -C third_party/bering describe --tags --exact-match)" = v1.0.0
-test "$(git -C third_party/sheaft describe --tags --exact-match)" = v1.2.0
+test "$(git -C third_party/bering rev-parse HEAD)" = d858f09a8cca8edf302646a54b28412d158c0ec2
+test "$(git -C third_party/sheaft rev-parse HEAD)" = e3fb8d2a487b3e16a80bbaafdc9b0e85354d4f3b
 
 tmp="$(mktemp -d)"
 trap 'rm -rf -- "$tmp"' EXIT

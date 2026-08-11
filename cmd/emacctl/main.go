@@ -70,6 +70,7 @@ func stagePlan(args []string) error {
 	warmup := f.Int("warmup", 200, "warm-up requests")
 	measured := f.Int("measured", 1000, "measured requests")
 	phase := f.String("phase", "measured", "measured or oracle")
+	persona := f.String("persona", "exact-60-40", "exact-60-40 or all-eligible")
 	out := f.String("out", "-", "output JSON path or -")
 	if err := f.Parse(args); err != nil {
 		return err
@@ -81,7 +82,7 @@ func stagePlan(args []string) error {
 	if p != experiment.PhaseMeasured && p != experiment.PhaseOracle {
 		return fmt.Errorf("phase must be measured or oracle")
 	}
-	plan, err := experiment.BuildStagePlan([]byte(*seed), *run, *stage, *weight, *warmup, *measured, p)
+	plan, err := experiment.BuildStagePlanWithPersona([]byte(*seed), *run, *stage, *weight, *warmup, *measured, p, *persona)
 	if err != nil {
 		return err
 	}

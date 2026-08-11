@@ -6,10 +6,12 @@ opentelemetry_demo:
 bering:
   repository: https://github.com/MB3R-Lab/Bering.git
   tag: v1.0.0
+  commit: d858f09a8cca8edf302646a54b28412d158c0ec2
   schema: "1.3.0"
 sheaft:
   repository: https://github.com/MB3R-Lab/Sheaft.git
   tag: v1.2.0
+  commit: e3fb8d2a487b3e16a80bbaafdc9b0e85354d4f3b
 collector:
   image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.157.0@sha256:4eb842091c796156d4d3c994eb22ba793590f5723719dbf6b8436cb4dfc17f48
   platform: linux/amd64
