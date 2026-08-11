@@ -7,6 +7,9 @@ export EMAC_RESULTS="$GITHUB_WORKSPACE/results"
 : "${EMAC_RUN_SEED:=feasibility-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}}"
 export EMAC_RUN_SEED
 mkdir -p "$EMAC_RESULTS"/{policy,metrics,flagd,sheaft,bering/{100,25,05}}
+# checkout-policy runs as the distroless nonroot UID. GitHub's bind-mounted
+# results directory is otherwise owned by the runner and not writable.
+chmod 0777 "$EMAC_RESULTS/policy"
 
 go run ./cmd/emacctl stage-plan --seed "$EMAC_RUN_SEED" --run "${EMAC_RUN_ID:-feasibility-${GITHUB_RUN_ID}}" --stage "$EMAC_WEIGHT" --weight "$weight_fraction" --warmup 200 --measured "$EMAC_N_MAX" --persona "${EMAC_PERSONA_MODE:-exact-60-40}" --out "$EMAC_RESULTS/stage-plan.json"
 go run ./cmd/emacctl flag-config --weight "$weight_fraction" --out "$EMAC_RESULTS/flagd/demo.flagd.json"
