@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -107,7 +108,10 @@ func observability(ctx context.Context) (func(context.Context) error, metric.Met
 	if err != nil {
 		return nil, nil, err
 	}
-	metricExporter, err := otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpointURL(env("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://otel-collector:4318/v1/metrics")))
+	metricExporter, err := otlpmetrichttp.New(ctx,
+		otlpmetrichttp.WithEndpointURL(env("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://otel-collector:4318/v1/metrics")),
+		otlpmetrichttp.WithTemporalitySelector(sdkmetric.DeltaTemporalitySelector),
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -116,7 +120,7 @@ func observability(ctx context.Context) (func(context.Context) error, metric.Met
 		return nil, nil, err
 	}
 	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter), sdktrace.WithResource(res))
-	residualView := sdkmetric.NewView(sdkmetric.Instrument{Name: "emac.policy.residual.duration", Kind: sdkmetric.InstrumentKindHistogram}, sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: []float64{1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000}, NoMinMax: true}})
+	residualView := sdkmetric.NewView(sdkmetric.Instrument{Name: "emac.policy.residual.duration", Kind: sdkmetric.InstrumentKindHistogram}, sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: histogramBoundaries(), NoMinMax: true}})
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(10*time.Second))), sdkmetric.WithResource(res), sdkmetric.WithView(residualView))
 	otel.SetTracerProvider(tp)
 	otel.SetMeterProvider(mp)
@@ -130,6 +134,26 @@ func observability(ctx context.Context) (func(context.Context) error, metric.Met
 		return traceErr
 	}
 	return shutdown, mp.Meter("emac.checkout-policy"), nil
+}
+
+func histogramBoundaries() []float64 {
+	fallback := []float64{1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000}
+	raw := strings.TrimSpace(os.Getenv("EMAC_HISTOGRAM_GRID_MS"))
+	if raw == "" {
+		return fallback
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]float64, 0, len(parts))
+	previous := -1.0
+	for _, part := range parts {
+		value, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
+		if err != nil || value <= previous {
+			panic("EMAC_HISTOGRAM_GRID_MS must be strictly increasing numeric milliseconds")
+		}
+		result = append(result, value)
+		previous = value
+	}
+	return result
 }
 func required(name string) string {
 	v := os.Getenv(name)

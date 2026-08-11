@@ -62,6 +62,8 @@ func main() {
 		err = rq1Validate(os.Args[2:])
 	case "replay":
 		err = replay(os.Args[2:])
+	case "confirmatory":
+		err = confirmatory(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -72,7 +74,34 @@ func main() {
 	}
 }
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|analyze-stage|rq1-validate|replay|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|analyze-stage|rq1-validate|replay|confirmatory|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+}
+
+func confirmatory(args []string) error {
+	f := flag.NewFlagSet("confirmatory", flag.ContinueOnError)
+	var runs pathsFlag
+	f.Var(&runs, "run", "offline replay JSON; repeat exactly 40 times")
+	out := f.String("out", "-", "confirmatory result JSON path or -")
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	result, err := evaluation.Confirmatory(runs)
+	if err != nil {
+		return err
+	}
+	var dst *os.File
+	if *out == "-" {
+		dst = os.Stdout
+	} else {
+		dst, err = os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer dst.Close()
+	}
+	encoder := json.NewEncoder(dst)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(result)
 }
 
 func replay(args []string) error {
@@ -139,6 +168,7 @@ func analyzeStage(args []string) error {
 	planPath := f.String("plan", "", "registered stage plan")
 	beringDir := f.String("bering", "", "isolated Bering pipeline directory")
 	calibrationPath := f.String("calibration", "", "frozen calibration JSON")
+	capacityPath := f.String("capacity", "", "registered capacity result JSON")
 	pipeline := f.Float64("pipeline", 1, "trace pipeline proportion")
 	current := f.Float64("current-weight", -1, "applied rollout weight")
 	target := f.Float64("target-weight", -1, "counterfactual target weight")
@@ -149,10 +179,10 @@ func analyzeStage(args []string) error {
 	if err := f.Parse(args); err != nil {
 		return err
 	}
-	if *ledgerPath == "" || *metricsPath == "" || *planPath == "" || *beringDir == "" || *calibrationPath == "" || *current < 0 || *target < 0 {
-		return fmt.Errorf("ledger, metrics, plan, bering, calibration, current-weight, and target-weight are required")
+	if *ledgerPath == "" || *metricsPath == "" || *planPath == "" || *beringDir == "" || *calibrationPath == "" || *capacityPath == "" || *current < 0 || *target < 0 {
+		return fmt.Errorf("ledger, metrics, plan, bering, calibration, capacity, current-weight, and target-weight are required")
 	}
-	result, err := analysis.Analyze(analysis.Input{LedgerPath: *ledgerPath, MetricsPath: *metricsPath, PlanPath: *planPath, BeringDir: *beringDir, CalibrationPath: *calibrationPath, Pipeline: *pipeline, CurrentWeight: *current, TargetWeight: *target, Look: *look, NMax: *nMax, Reconciled: *reconciled})
+	result, err := analysis.Analyze(analysis.Input{LedgerPath: *ledgerPath, MetricsPath: *metricsPath, PlanPath: *planPath, BeringDir: *beringDir, CalibrationPath: *calibrationPath, CapacityPath: *capacityPath, Pipeline: *pipeline, CurrentWeight: *current, TargetWeight: *target, Look: *look, NMax: *nMax, Reconciled: *reconciled})
 	if err != nil {
 		return err
 	}

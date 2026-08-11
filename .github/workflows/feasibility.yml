@@ -6,7 +6,7 @@ on:
         description: registered N_max candidate from the protocol grid
         type: choice
         options: ['1000', '2000', '4000', '8000', '12000', '16000', '20000']
-        default: '4000'
+        default: '20000'
       rate:
         type: choice
         options: ['5', '2']
@@ -21,7 +21,9 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - name: Require frozen pilot tag
-        run: git rev-parse pilot-protocol-v1
+        run: |
+          git rev-parse pilot-protocol-v1
+          test -s protocol/calibration-v1.json
 
   stage:
     needs: guard
@@ -40,11 +42,51 @@ jobs:
           EMAC_WEIGHT: ${{ matrix.weight }}
           EMAC_N_MAX: ${{ inputs.n_max }}
           EMAC_RATE: ${{ inputs.rate }}
+          EMAC_ANALYSIS_CAPS: 1000,2000,4000,8000,12000,16000,20000
         run: ./scripts/run-stage-ci.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: feasibility-weight-${{ matrix.weight }}
           path: results
+          if-no-files-found: error
+          retention-days: 90
+
+  replay:
+    needs: stage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: feasibility-weight-*
+          path: downloads
+      - name: Rebuild registered sweep layout and replay every N_max candidate
+        shell: bash
+        run: |
+          mkdir -p sweep replay
+          for weight in 10 25 50 75 100; do
+            target="sweep/weight-$(printf '%03d' "$weight")"
+            mkdir -p "$target"
+            cp -a "downloads/feasibility-weight-$weight/." "$target/"
+          done
+          selected=null
+          for cap in 1000 2000 4000 8000 12000 16000 20000; do
+            (( cap <= ${{ inputs.n_max }} )) || continue
+            go run ./cmd/emacctl replay --root sweep --n-max "$cap" --out "replay/n-max-$cap.json"
+            if [[ "$selected" == null ]] && jq -e '.identifying == true' "replay/n-max-$cap.json" >/dev/null; then
+              selected="$cap"
+            fi
+          done
+          jq -n --argjson selected "$selected" --arg cap '${{ inputs.n_max }}' --arg rate '${{ inputs.rate }}' \
+            '{schema:"emac.feasibility/v1", selected_n_max:$selected, collection_cap:($cap|tonumber), rate:($rate|tonumber), identifying:($selected != null)}' \
+            > replay/feasibility-summary.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: feasibility-replay
+          path: replay
           if-no-files-found: error
           retention-days: 90

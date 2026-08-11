@@ -1,0 +1,43 @@
+name: confirmatory-analysis
+on:
+  workflow_dispatch:
+    inputs:
+      batch_run_ids:
+        description: Comma-separated Actions run IDs for the five confirmatory batches
+        type: string
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, ref: protocol-v1, fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - name: Download all immutable replay artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p replays
+          IFS=',' read -r -a workflow_runs <<< '${{ inputs.batch_run_ids }}'
+          test "${#workflow_runs[@]}" -eq 5
+          for workflow_run in "${workflow_runs[@]}"; do
+            gh run download "$workflow_run" --pattern 'confirmatory-replay-run-*' --dir replays
+          done
+          mapfile -t paths < <(find replays -name 'run-*.json' -type f | sort -V)
+          test "${#paths[@]}" -eq 40
+          args=()
+          for path in "${paths[@]}"; do args+=(--run "$path"); done
+          go run ./cmd/emacctl confirmatory "${args[@]}" --out confirmatory-result.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: confirmatory-result
+          path: confirmatory-result.json
+          if-no-files-found: error
+          retention-days: 120

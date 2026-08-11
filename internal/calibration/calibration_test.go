@@ -36,4 +36,7 @@ func TestRegisteredCalibrationRule(t *testing.T) {
 	if result.LocalDeadlinesMS["Frontend/POST api/checkout|stable_domestic"] != 60 {
 		t.Fatal(result.LocalDeadlinesMS)
 	}
+	if baseline := result.Baselines["Frontend/POST api/checkout|stable_domestic"]; baseline.SuccessRate != 1 || baseline.P95MS != 50 {
+		t.Fatal(baseline)
+	}
 }

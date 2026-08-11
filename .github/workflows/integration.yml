@@ -31,6 +31,7 @@ jobs:
         run: |
           mkdir -p results/{policy,metrics,flagd,sheaft,bering/{100,25,05}}
           chmod 0777 results/policy
+          EMAC_ROOT="$GITHUB_WORKSPACE" EMAC_RESULTS="$GITHUB_WORKSPACE/results" ./scripts/render-collector-config.sh
           go run ./cmd/emacctl stage-plan --seed "$EMAC_RUN_SEED" --run "integration-${GITHUB_RUN_ID}" --stage 10 --weight "$EMAC_WEIGHT" --warmup 200 --measured '${{ inputs.measured }}' --out results/stage-plan.json
           go run ./cmd/emacctl flag-config --weight "$EMAC_WEIGHT" --out results/flagd/demo.flagd.json
       - name: Start pinned demo and EmaC overlay

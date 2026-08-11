@@ -3,7 +3,7 @@ services:
     image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.157.0@sha256:4eb842091c796156d4d3c994eb22ba793590f5723719dbf6b8436cb4dfc17f48
     command: ["--config=/etc/emac/collector.yaml"]
     volumes:
-      - ${EMAC_ROOT}/deploy/collector/config.yaml:/etc/emac/collector.yaml:ro
+      - ${EMAC_RESULTS}/collector.yaml:/etc/emac/collector.yaml:ro
       - ${EMAC_RESULTS}/metrics:/var/lib/emac/metrics
     ports:
       - "8888:8888"
@@ -51,6 +51,7 @@ services:
       EMAC_RUN_SEED: ${EMAC_RUN_SEED}
       EMAC_WEIGHT: ${EMAC_WEIGHT}
       EMAC_LEDGER_PATH: /var/lib/emac/ledger.jsonl
+      EMAC_HISTOGRAM_GRID_MS: ${EMAC_HISTOGRAM_GRID_MS:-}
     volumes:
       - ${EMAC_RESULTS}/policy:/var/lib/emac
     ports:

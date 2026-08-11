@@ -21,6 +21,7 @@ func TestReplayIdentifyingTrajectory(t *testing.T) {
 		for _, pipeline := range []string{"100", "25", "05"} {
 			value := analysis.Result{
 				Admission: evidence.Admission{Admitted: true}, IntegrityValid: true,
+				Manipulation:  analysis.Manipulation{Valid: true},
 				Full:          model.CompileOutput{LowerAtDeadline: 1, UpperAtDeadline: 1},
 				FeatureAware:  model.CompileOutput{LowerAtDeadline: 1, UpperAtDeadline: 1},
 				CurrentOracle: analysis.Oracle{Label: statistics.Safe}, EvaluationOracle: analysis.Oracle{Label: labels[weight]},
@@ -31,7 +32,7 @@ func TestReplayIdentifyingTrajectory(t *testing.T) {
 				value.FeatureAware = value.Full
 			}
 			for _, look := range []int{1000, 2000, 4000} {
-				path := filepath.Join(root, fmt.Sprintf("weight-%03d", weight), fmt.Sprintf("analysis-cap-04000-look-%05d-p%s.json", look, pipeline))
+				path := filepath.Join(root, fmt.Sprintf("weight-%03d", weight), "analysis", fmt.Sprintf("analysis-cap-04000-look-%05d-p%s.json", look, pipeline))
 				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 					t.Fatal(err)
 				}

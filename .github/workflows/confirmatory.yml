@@ -1,0 +1,109 @@
+name: confirmatory-batch
+on:
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: Registered batch of eight paired seeds
+        type: choice
+        options: ['1', '2', '3', '4', '5']
+        default: '1'
+
+permissions: { contents: read }
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      runs: ${{ steps.batch.outputs.runs }}
+      n_max: ${{ steps.protocol.outputs.n_max }}
+      rate: ${{ steps.protocol.outputs.rate }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Require the confirmatory freeze
+        id: protocol
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$(git rev-list -n1 protocol-v1)"
+          test -s protocol/calibration-v1.json
+          n_max="$(awk '$1 == "n_max:" {print $2}' protocol/protocol-v1.yaml)"
+          rate="$(awk '/^calibration_lock:/{found=1} found && $1 == "ingress:" {print $2; exit}' protocol/protocol-v1.yaml)"
+          [[ "$n_max" =~ ^[0-9]+$ ]]
+          [[ "$rate" =~ ^[0-9]+$ ]]
+          echo "n_max=$n_max" >> "$GITHUB_OUTPUT"
+          echo "rate=$rate" >> "$GITHUB_OUTPUT"
+      - name: Select registered seeds
+        id: batch
+        shell: bash
+        run: |
+          case '${{ inputs.batch }}' in
+            1) runs='[1,2,3,4,5,6,7,8]' ;;
+            2) runs='[9,10,11,12,13,14,15,16]' ;;
+            3) runs='[17,18,19,20,21,22,23,24]' ;;
+            4) runs='[25,26,27,28,29,30,31,32]' ;;
+            5) runs='[33,34,35,36,37,38,39,40]' ;;
+          esac
+          echo "runs=$runs" >> "$GITHUB_OUTPUT"
+
+  stage:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        run: ${{ fromJSON(needs.prepare.outputs.runs) }}
+        weight: [10, 25, 50, 75, 100]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, ref: protocol-v1 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - name: Execute immutable full-sweep stage
+        env:
+          EMAC_WEIGHT: ${{ matrix.weight }}
+          EMAC_N_MAX: ${{ needs.prepare.outputs.n_max }}
+          EMAC_RATE: ${{ needs.prepare.outputs.rate }}
+          EMAC_RUN_SEED: confirmatory-${{ matrix.run }}
+          EMAC_RUN_ID: confirmatory-${{ matrix.run }}
+        run: ./scripts/run-stage-ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: confirmatory-run-${{ matrix.run }}-weight-${{ matrix.weight }}
+          path: results
+          if-no-files-found: error
+          retention-days: 120
+
+  replay:
+    needs: [prepare, stage]
+    strategy:
+      fail-fast: false
+      matrix:
+        run: ${{ fromJSON(needs.prepare.outputs.runs) }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, ref: protocol-v1 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: confirmatory-run-${{ matrix.run }}-weight-*
+          path: downloads
+      - name: Causal offline replay
+        shell: bash
+        run: |
+          mkdir -p sweep replay
+          for weight in 10 25 50 75 100; do
+            target="sweep/weight-$(printf '%03d' "$weight")"
+            mkdir -p "$target"
+            cp -a "downloads/confirmatory-run-${{ matrix.run }}-weight-$weight/." "$target/"
+          done
+          go run ./cmd/emacctl replay --root sweep --n-max '${{ needs.prepare.outputs.n_max }}' --out "replay/run-${{ matrix.run }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: confirmatory-replay-run-${{ matrix.run }}
+          path: replay/run-${{ matrix.run }}.json
+          if-no-files-found: error
+          retention-days: 120

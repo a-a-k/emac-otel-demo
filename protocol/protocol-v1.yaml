@@ -127,6 +127,10 @@ manipulation:
   analysis: intention_to_treat
 
 calibration_lock:
+  journey_deadline_ms: null
+  local_deadlines_ms: null
+  ingress: null
+  histogram_grid_ms: null
   freezes: [journey_deadline, local_deadlines, ingress, histogram_grid, manipulation_thresholds]
   n_max_rule: minimum grid value satisfying every identifiability criterion
   manual_retuning: forbidden

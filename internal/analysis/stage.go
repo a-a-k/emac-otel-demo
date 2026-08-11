@@ -30,6 +30,7 @@ type Input struct {
 	PlanPath        string
 	BeringDir       string
 	CalibrationPath string
+	CapacityPath    string
 	Pipeline        float64
 	CurrentWeight   float64
 	TargetWeight    float64
@@ -65,6 +66,37 @@ type Result struct {
 	EvidenceCutoff   time.Time                    `json:"evidence_cutoff"`
 	EvidenceDigest   string                       `json:"evidence_scope"`
 	IntegrityValid   bool                         `json:"integrity_valid"`
+	Manipulation     Manipulation                 `json:"manipulation"`
+}
+
+type Manipulation struct {
+	Valid      bool                             `json:"valid"`
+	Operations map[string]ManipulationOperation `json:"operations"`
+	Capacity   Capacity                         `json:"capacity"`
+	Reasons    []string                         `json:"reasons,omitempty"`
+}
+
+type ManipulationOperation struct {
+	SuccessRate      float64 `json:"success_rate"`
+	BaselineSuccess  float64 `json:"baseline_success_rate"`
+	SuccessDegradePP float64 `json:"success_degradation_pp"`
+	P95MS            float64 `json:"correct_attempted_p95_ms"`
+	BaselineP95MS    float64 `json:"baseline_p95_ms"`
+	P95Ratio         float64 `json:"p95_ratio"`
+	Valid            bool    `json:"valid"`
+}
+
+type Capacity struct {
+	Valid                    bool     `json:"valid"`
+	TargetRate               float64  `json:"target_rate"`
+	AchievedRate             float64  `json:"achieved_rate"`
+	IngressDeviationPercent  float64  `json:"ingress_deviation_percent"`
+	DroppedIterationsPercent float64  `json:"dropped_iterations_percent"`
+	CPUP95Percent            float64  `json:"cpu_p95_percent"`
+	MemoryP95Percent         float64  `json:"memory_p95_percent"`
+	TelemetryDrops           int      `json:"telemetry_drops"`
+	LateSpans                int      `json:"late_spans"`
+	Reasons                  []string `json:"reasons,omitempty"`
 }
 
 type Oracle struct {
@@ -107,6 +139,10 @@ func Analyze(in Input) (Result, error) {
 		return Result{}, err
 	}
 	projected, roots, conflict := project(requests, cal.JourneyDeadlineMS)
+	capacity, err := loadCapacity(in.CapacityPath)
+	if err != nil {
+		return Result{}, err
+	}
 	leaves := map[string]LeafEvidence{}
 	bands := map[string]model.Band{}
 	componentGreen := map[string]*bool{}
@@ -175,17 +211,31 @@ func Analyze(in Input) (Result, error) {
 		controller.Local:        string(localDecision(componentGreen, positiveBranches(in.TargetWeight))),
 		controller.Eager:        string(controller.FullEmaC(!conflict, full.LowerAtDeadline, full.UpperAtDeadline, .95)),
 	}
+	manipulation := manipulationChecks(projected, allHistograms, in.Look, in.CurrentWeight, cal, capacity)
 	return Result{
 		Schema: "emac.stage-analysis/v1", RunID: plan.RunID, StageID: plan.StageID, Pipeline: in.Pipeline,
 		CurrentWeight: in.CurrentWeight, TargetWeight: in.TargetWeight, Look: in.Look, AlphaStar: alphaStar,
 		TargetShare: share, Admission: admission, Leaves: leaves, Full: full, FeatureAware: feature,
 		CurrentOracle: currentOracle, EvaluationOracle: evaluationOracle, ComponentGreen: componentGreen, Decisions: decisions,
-		EvidenceCutoff: cutoff, EvidenceDigest: fmt.Sprintf("first-%d-measured-roots", in.Look), IntegrityValid: !conflict,
+		EvidenceCutoff: cutoff, EvidenceDigest: fmt.Sprintf("first-%d-measured-roots", in.Look), IntegrityValid: !conflict, Manipulation: manipulation,
 	}, nil
 }
 
 func loadCalibration(path string) (calibration.Result, error) {
 	var result calibration.Result
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return result, err
+	}
+	err = json.Unmarshal(b, &result)
+	return result, err
+}
+
+func loadCapacity(path string) (Capacity, error) {
+	var result Capacity
+	if path == "" {
+		return result, fmt.Errorf("capacity result is required")
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return result, err
@@ -396,7 +446,13 @@ func localGreen(c counts, histogram evidence.Histogram, deadline float64) *bool 
 		return nil
 	}
 	success := float64(c.Correct) / float64(c.Attempted)
-	target := int(math.Ceil(.95 * float64(c.Correct)))
+	p95 := histogramQuantile(histogram, c.Correct, .95)
+	green := success >= .99 && p95 <= deadline
+	return &green
+}
+
+func histogramQuantile(histogram evidence.Histogram, count int, probability float64) float64 {
+	target := int(math.Ceil(probability * float64(count)))
 	cumulative := 0
 	p95 := math.Inf(1)
 	for i, n := range histogram.BucketCounts[:len(histogram.Bounds)] {
@@ -406,8 +462,42 @@ func localGreen(c counts, histogram evidence.Histogram, deadline float64) *bool 
 			break
 		}
 	}
-	green := success >= .99 && p95 <= deadline
-	return &green
+	return p95
+}
+
+func manipulationChecks(projected map[string]counts, histograms map[evidence.HistogramKey]evidence.Histogram, look int, weight float64, cal calibration.Result, capacity Capacity) Manipulation {
+	result := Manipulation{Valid: capacity.Valid, Operations: map[string]ManipulationOperation{}, Capacity: capacity}
+	if !capacity.Valid {
+		result.Reasons = append(result.Reasons, "capacity checks failed")
+	}
+	positive := positiveBranches(weight)
+	for branch, operations := range branchOperations {
+		if !positive[branch] {
+			continue
+		}
+		for _, operation := range operations {
+			key := operation + "|" + branch
+			baseline, exists := cal.Baselines[key]
+			c := projected[key]
+			histogram, err := evidence.HistogramPrefix(histograms, operation, branch, look)
+			check := ManipulationOperation{BaselineSuccess: baseline.SuccessRate, BaselineP95MS: baseline.P95MS}
+			if exists && c.Attempted > 0 && c.Correct > 0 && err == nil && histogram.Count() == c.Correct {
+				check.SuccessRate = float64(c.Correct) / float64(c.Attempted)
+				check.SuccessDegradePP = 100 * (baseline.SuccessRate - check.SuccessRate)
+				check.P95MS = histogramQuantile(histogram, c.Correct, .95)
+				if baseline.P95MS > 0 {
+					check.P95Ratio = check.P95MS / baseline.P95MS
+				}
+				check.Valid = check.SuccessDegradePP <= 1 && check.P95Ratio <= 1.10
+			}
+			if !check.Valid {
+				result.Valid = false
+				result.Reasons = append(result.Reasons, "manipulation check failed for "+key)
+			}
+			result.Operations[key] = check
+		}
+	}
+	return result
 }
 
 func positiveBranches(target float64) map[string]bool {

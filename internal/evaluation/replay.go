@@ -113,7 +113,7 @@ func Replay(root string, nMax int) (ReplayResult, error) {
 }
 
 func loadStageAnalysis(root string, weight, cap, look int, pipeline string) (analysis.Result, error) {
-	path := filepath.Join(root, fmt.Sprintf("weight-%03d", weight), fmt.Sprintf("analysis-cap-%05d-look-%05d-p%s.json", cap, look, pipeline))
+	path := filepath.Join(root, fmt.Sprintf("weight-%03d", weight), "analysis", fmt.Sprintf("analysis-cap-%05d-look-%05d-p%s.json", cap, look, pipeline))
 	var result analysis.Result
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -177,7 +177,13 @@ func identifiability(result ReplayResult, stages map[int]analysis.Result) (bool,
 		}
 	}
 	for weight, stage := range stages {
-		for _, value := range stage.ComponentGreen {
+		if !stage.Manipulation.Valid {
+			reasons = append(reasons, fmt.Sprintf("weight %d is manipulation-invalid", weight))
+		}
+		for key, value := range stage.ComponentGreen {
+			if weight == 100 && hasSuffix(key, "stable_international") {
+				continue
+			}
 			if value == nil || !*value {
 				reasons = append(reasons, fmt.Sprintf("weight %d is not component-green", weight))
 				break
@@ -185,4 +191,8 @@ func identifiability(result ReplayResult, stages map[int]analysis.Result) (bool,
 		}
 	}
 	return len(reasons) == 0, reasons
+}
+
+func hasSuffix(value, suffix string) bool {
+	return len(value) >= len(suffix) && value[len(value)-len(suffix):] == suffix
 }

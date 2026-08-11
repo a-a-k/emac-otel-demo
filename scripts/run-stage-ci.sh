@@ -10,6 +10,11 @@ mkdir -p "$EMAC_RESULTS"/{policy,metrics,flagd,sheaft,bering/{100,25,05}}
 # checkout-policy runs as the distroless nonroot UID. GitHub's bind-mounted
 # results directory is otherwise owned by the runner and not writable.
 chmod 0777 "$EMAC_RESULTS/policy"
+./scripts/render-collector-config.sh
+if [[ -s "$EMAC_RESULTS/histogram-grid.env" ]]; then
+  source "$EMAC_RESULTS/histogram-grid.env"
+  export EMAC_HISTOGRAM_GRID_MS
+fi
 
 go run ./cmd/emacctl stage-plan --seed "$EMAC_RUN_SEED" --run "${EMAC_RUN_ID:-feasibility-${GITHUB_RUN_ID}}" --stage "$EMAC_WEIGHT" --weight "$weight_fraction" --warmup 200 --measured "$EMAC_N_MAX" --persona "${EMAC_PERSONA_MODE:-exact-60-40}" --out "$EMAC_RESULTS/stage-plan.json"
 go run ./cmd/emacctl flag-config --weight "$weight_fraction" --out "$EMAC_RESULTS/flagd/demo.flagd.json"
@@ -22,3 +27,6 @@ trap 'docker compose --env-file third_party/opentelemetry-demo/.env -f third_par
 
 total=$((200 + EMAC_N_MAX)); duration=$(( (total + EMAC_RATE - 1) / EMAC_RATE )); export EMAC_DURATION="${duration}s"
 ./scripts/run-workload.sh
+if [[ -s "${EMAC_CALIBRATION:-$EMAC_ROOT/protocol/calibration-v1.json}" ]]; then
+  ./scripts/analyze-stage.sh
+fi
