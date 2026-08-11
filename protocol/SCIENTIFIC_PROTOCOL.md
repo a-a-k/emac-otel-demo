@@ -365,7 +365,10 @@ trajectory.
 Capacity is tested first at 5 measured checkout/s with the all-eligible
 workload, then at 2/s if necessary. A rate is acceptable only with dropped
 iterations below 1%, CPU p95 below 70%, memory below 80%, and zero telemetry
-drops and late spans. Failure at 2/s makes the protocol infeasible.
+drops and late spans. CPU and memory scope is the policy-root journey and its
+transitive checkout dependencies plus Collector, Bering, and flagd; unrelated
+Demo traffic such as AdService is not a capacity subject. Failure at 2/s makes
+the protocol infeasible.
 
 Three weight-0 runs characterize D, stable-international, and
 stable-domestic. A standalone candidate workload characterizes candidate-only

@@ -100,15 +100,25 @@ func readK6Summary(path string) (float64, float64, float64, error) {
 	}
 	var summary struct {
 		Metrics map[string]struct {
+			Count  float64            `json:"count"`
+			Rate   float64            `json:"rate"`
 			Values map[string]float64 `json:"values"`
 		} `json:"metrics"`
 	}
 	if err := json.Unmarshal(bytes, &summary); err != nil {
 		return 0, 0, 0, err
 	}
-	iterations := summary.Metrics["iterations"].Values["count"]
-	dropped := summary.Metrics["dropped_iterations"].Values["count"]
-	rate := summary.Metrics["iterations"].Values["rate"]
+	iterationMetric := summary.Metrics["iterations"]
+	droppedMetric := summary.Metrics["dropped_iterations"]
+	iterations, rate := iterationMetric.Count, iterationMetric.Rate
+	dropped := droppedMetric.Count
+	if iterationMetric.Values != nil {
+		iterations = iterationMetric.Values["count"]
+		rate = iterationMetric.Values["rate"]
+	}
+	if droppedMetric.Values != nil {
+		dropped = droppedMetric.Values["count"]
+	}
 	if iterations < 0 || dropped < 0 || rate < 0 {
 		return 0, 0, 0, fmt.Errorf("invalid k6 metrics in %s", path)
 	}
@@ -138,13 +148,26 @@ func resourceP95(path string) (float64, float64, error) {
 	}
 	maxCPU, maxMemory := 0.0, 0.0
 	for name, values := range byContainerCPU {
-		if name == "" {
+		if !capacityContainer(name) {
 			continue
 		}
 		maxCPU = math.Max(maxCPU, percentile(values, .95))
 		maxMemory = math.Max(maxMemory, percentile(byContainerMemory[name], .95))
 	}
 	return maxCPU, maxMemory, nil
+}
+
+func capacityContainer(name string) bool {
+	for _, required := range []string{
+		"checkout-policy", "otel-collector", "bering100", "bering25", "bering05", "flagd",
+		"frontend", "checkout", "cart", "currency", "shipping", "quote", "email", "payment",
+		"product-catalog", "valkey-cart", "astronomy-db",
+	} {
+		if name == required || strings.Contains(name, required) {
+			return true
+		}
+	}
+	return false
 }
 
 func percentage(value any) float64 {

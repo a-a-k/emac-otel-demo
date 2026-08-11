@@ -1,4 +1,27 @@
 services:
+  # Capacity is intentionally provisioned above the Demo's tiny showcase
+  # limits so the experiment tests composition rather than container OOM
+  # pressure. The frozen saturation checks still reject CPU/memory >= limits.
+  checkout:
+    deploy:
+      resources:
+        limits: { memory: 40M }
+
+  payment:
+    deploy:
+      resources:
+        limits: { memory: 40M }
+
+  product-catalog:
+    deploy:
+      resources:
+        limits: { memory: 40M }
+
+  quote:
+    deploy:
+      resources:
+        limits: { memory: 80M }
+
   otel-collector:
     image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.157.0@sha256:4eb842091c796156d4d3c994eb22ba793590f5723719dbf6b8436cb4dfc17f48
     command: ["--config=/etc/emac/collector.yaml"]
