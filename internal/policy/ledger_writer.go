@@ -18,6 +18,12 @@ func OpenLedger(path string) (*LedgerWriter, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The experiment runner must reconcile and archive this bind-mounted file.
+	// The directory contains no credentials or user data.
+	if err := f.Chmod(0o644); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
 	return &LedgerWriter{file: f}, nil
 }
 func (w *LedgerWriter) Write(v ledger.Request) error {

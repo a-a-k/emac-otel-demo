@@ -3,7 +3,9 @@ package model
 import "testing"
 
 func TestSeriesAndThreeCohort(t *testing.T) {
-	deterministic := func(x float64) Band { return Band{[]float64{x}, []float64{1}, []float64{1}} }
+	deterministic := func(x float64) Band {
+		return Band{Grid: []float64{x}, Lower: []float64{1}, Upper: []float64{1}}
+	}
 	s, err := Series(deterministic(2), deterministic(3))
 	if err != nil {
 		t.Fatal(err)
@@ -37,5 +39,16 @@ func TestDKWUsesIntendedDenominator(t *testing.T) {
 	}
 	if _, err = DKWBand([]float64{1}, []int{11}, 10, .05); err == nil {
 		t.Fatal("accepted impossible histogram")
+	}
+}
+
+func TestIntervalCensoringUsesNextBoundaryForUpper(t *testing.T) {
+	b, err := DKWBand([]float64{1, 2}, []int{2, 8}, 10, .5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lower, upper := b.At(1.5)
+	if lower > b.Lower[0] || upper < b.Upper[1] {
+		t.Fatalf("inside bucket got [%g,%g], boundary bands %#v", lower, upper, b)
 	}
 }

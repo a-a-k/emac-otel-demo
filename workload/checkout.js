@@ -49,6 +49,7 @@ function headers(v, phase) {
     'X-Emac-Run-Id': planDoc.run_id,
     'X-Emac-Stage-Id': planDoc.stage_id,
     'X-Emac-Request-Id': v.request_id,
+    'X-Emac-Evidence-Index': String(v.evidence_index),
     'X-Emac-Rollout-Key': v.rollout_key,
     'X-Emac-International': String(v.international),
     'X-Emac-Phase': phase,

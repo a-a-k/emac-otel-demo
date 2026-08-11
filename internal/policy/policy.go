@@ -26,6 +26,7 @@ const (
 	HeaderRunID         = "X-Emac-Run-Id"
 	HeaderStageID       = "X-Emac-Stage-Id"
 	HeaderRequestID     = "X-Emac-Request-Id"
+	HeaderEvidenceIndex = "X-Emac-Evidence-Index"
 	HeaderRolloutKey    = "X-Emac-Rollout-Key"
 	HeaderInternational = "X-Emac-International"
 	HeaderPhase         = "X-Emac-Phase"
@@ -137,7 +138,7 @@ func (s *Service) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
 	rootDuration := time.Since(started)
-	record := ledger.Request{RunID: meta.runID, StageID: meta.stageID, RequestID: meta.requestID, Phase: string(meta.phase), Branch: string(meta.branch), RootCorrect: rootCorrect, Root: rootDuration, Calls: calls}
+	record := ledger.Request{RunID: meta.runID, StageID: meta.stageID, RequestID: meta.requestID, EvidenceIndex: meta.evidenceIndex, EndedAt: time.Now().UTC(), Phase: string(meta.phase), Branch: string(meta.branch), RootCorrect: rootCorrect, Root: rootDuration, Calls: calls}
 	if root != nil {
 		root.SetAttributes(attribute.Bool("emac.correct", rootCorrect))
 		if !rootCorrect {
@@ -159,6 +160,8 @@ func (s *Service) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 type requestMetadata struct {
 	runID, stageID, requestID, userID string
+	evidenceIndex                     int
+	evidenceBlock                     string
 	phase                             experiment.Phase
 	branch                            experiment.Branch
 }
@@ -167,7 +170,7 @@ type metadataKey struct{}
 
 func (m requestMetadata) attributes(operation string) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
-		attribute.String("emac.operation", operation), attribute.String("emac.run_id", m.runID), attribute.String("emac.stage_id", m.stageID), attribute.String("emac.request_id", m.requestID), attribute.String("emac.phase", string(m.phase)), attribute.String("emac.branch", string(m.branch)),
+		attribute.String("emac.operation", operation), attribute.String("emac.run_id", m.runID), attribute.String("emac.stage_id", m.stageID), attribute.String("emac.request_id", m.requestID), attribute.String("emac.phase", string(m.phase)), attribute.String("emac.branch", string(m.branch)), attribute.String("emac.evidence_block", m.evidenceBlock),
 	}
 	switch operation {
 	case "POST /api/checkout", "Frontend/POST api/checkout":
@@ -192,6 +195,12 @@ func (s *Service) metadata(r *http.Request) (requestMetadata, error) {
 	default:
 		return m, fmt.Errorf("invalid phase %q", m.phase)
 	}
+	evidenceIndex, err := strconv.Atoi(r.Header.Get(HeaderEvidenceIndex))
+	if err != nil {
+		return m, fmt.Errorf("invalid evidence index")
+	}
+	m.evidenceIndex = evidenceIndex
+	m.evidenceBlock = experiment.EvidenceBlock(m.evidenceIndex)
 	intl, err := strconv.ParseBool(r.Header.Get(HeaderInternational))
 	if err != nil {
 		return m, fmt.Errorf("invalid international header")

@@ -164,6 +164,10 @@ func LoadArchive(dir string) ([]ProjectionView, error) {
 	return out, nil
 }
 
+func LoadStableArchive(dir string, observation int64) (ProjectionView, error) {
+	return LoadProjection(filepath.Join(dir, "raw-windows", fmt.Sprintf("stable-%06d.json", observation)))
+}
+
 // Watch archives Bering's overwritten projection views once per observation.
 // It copies only a mutually consistent raw/stable/report triple.
 func Watch(dir, stopFile string, poll time.Duration) error {

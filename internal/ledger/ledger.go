@@ -19,15 +19,17 @@ type Call struct {
 }
 
 type Request struct {
-	RunID       string        `json:"run_id"`
-	StageID     string        `json:"stage_id"`
-	RequestID   string        `json:"request_id"`
-	TraceID     string        `json:"trace_id"`
-	Phase       string        `json:"phase"`
-	Branch      string        `json:"branch"`
-	RootCorrect bool          `json:"root_correct"`
-	Root        time.Duration `json:"root_duration"`
-	Calls       []Call        `json:"calls"`
+	RunID         string        `json:"run_id"`
+	StageID       string        `json:"stage_id"`
+	RequestID     string        `json:"request_id"`
+	EvidenceIndex int           `json:"evidence_index"`
+	EndedAt       time.Time     `json:"ended_at"`
+	TraceID       string        `json:"trace_id"`
+	Phase         string        `json:"phase"`
+	Branch        string        `json:"branch"`
+	RootCorrect   bool          `json:"root_correct"`
+	Root          time.Duration `json:"root_duration"`
+	Calls         []Call        `json:"calls"`
 }
 
 type Observation struct {

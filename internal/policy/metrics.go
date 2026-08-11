@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/a-a-k/emac-otel-demo/internal/experiment"
 	"github.com/a-a-k/emac-otel-demo/internal/ledger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -37,7 +38,7 @@ func (m *Metrics) Record(ctx context.Context, r ledger.Request) error {
 	if err != nil {
 		return err
 	}
-	attrs := metric.WithAttributes(attribute.String("emac.operation", "policy.residual"), attribute.String("emac.branch", r.Branch), attribute.String("emac.phase", r.Phase), attribute.String("emac.run_id", r.RunID), attribute.String("emac.stage_id", r.StageID))
+	attrs := metric.WithAttributes(attribute.String("emac.operation", "policy.residual"), attribute.String("emac.branch", r.Branch), attribute.String("emac.phase", r.Phase), attribute.String("emac.run_id", r.RunID), attribute.String("emac.stage_id", r.StageID), attribute.String("emac.evidence_block", experiment.EvidenceBlock(r.EvidenceIndex)))
 	m.Intended.Add(ctx, 1, attrs)
 	if r.RootCorrect {
 		m.Correct.Add(ctx, 1, attrs)

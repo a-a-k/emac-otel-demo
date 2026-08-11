@@ -57,7 +57,7 @@ evidence:
   bering_recurrence_windows: 2
   cumulative_edge_floor: 10
   spanmetrics_flush_seconds: 10
-  spanmetrics_dimensions: [emac.operation, emac.branch, emac.correct, emac.run_id, emac.stage_id]
+  spanmetrics_dimensions: [emac.operation, emac.branch, emac.correct, emac.run_id, emac.stage_id, emac.evidence_block]
   trace_pipelines_percent: [100, 25, 5]
   nested_sampling: true
   sampling_mode: collector_hash_seed_fnv1a_trace_id

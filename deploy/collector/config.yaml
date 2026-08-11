@@ -47,6 +47,7 @@ connectors:
       - { name: emac.correct }
       - { name: emac.run_id }
       - { name: emac.stage_id }
+      - { name: emac.evidence_block }
     aggregation_temporality: AGGREGATION_TEMPORALITY_DELTA
     metrics_flush_interval: 10s
 

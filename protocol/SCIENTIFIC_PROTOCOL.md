@@ -271,7 +271,8 @@ combinations. Causal decisions are never changed post hoc.
 ## 11. Collector and histogram semantics
 
 The pinned Collector uses Delta temporality, a 10-second metrics flush, unit
-`ms`, and dimensions for operation, branch, correctness, run, and stage.
+`ms`, and dimensions for operation, branch, correctness, run, stage, and the
+registered evidence-look block.
 Only `phase=measured` spans reach evidence pipelines. Unfiltered measured
 traces are sampled for Bering; measured `correct=true` spans reach Span
 Metrics. Attempted and intended denominators come from the ledger.

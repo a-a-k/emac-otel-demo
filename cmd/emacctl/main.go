@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/a-a-k/emac-otel-demo/internal/analysis"
 	"github.com/a-a-k/emac-otel-demo/internal/calibration"
 	"github.com/a-a-k/emac-otel-demo/internal/controller"
 	"github.com/a-a-k/emac-otel-demo/internal/evaluation"
@@ -54,6 +55,8 @@ func main() {
 		err = calibrate(os.Args[2:])
 	case "capacity-check":
 		err = capacityCheck(os.Args[2:])
+	case "analyze-stage":
+		err = analyzeStage(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -64,7 +67,46 @@ func main() {
 	}
 }
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|analyze-stage|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+}
+
+func analyzeStage(args []string) error {
+	f := flag.NewFlagSet("analyze-stage", flag.ContinueOnError)
+	ledgerPath := f.String("ledger", "", "policy ledger JSONL")
+	metricsPath := f.String("metrics", "", "Collector metrics JSON stream")
+	planPath := f.String("plan", "", "registered stage plan")
+	beringDir := f.String("bering", "", "isolated Bering pipeline directory")
+	calibrationPath := f.String("calibration", "", "frozen calibration JSON")
+	pipeline := f.Float64("pipeline", 1, "trace pipeline proportion")
+	current := f.Float64("current-weight", -1, "applied rollout weight")
+	target := f.Float64("target-weight", -1, "counterfactual target weight")
+	look := f.Int("look", 0, "measured prefix size")
+	nMax := f.Int("n-max", 0, "frozen maximum stage evidence")
+	reconciled := f.Bool("reconciled", false, "prefix evidence passed registered reconciliation")
+	out := f.String("out", "-", "analysis JSON path or -")
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	if *ledgerPath == "" || *metricsPath == "" || *planPath == "" || *beringDir == "" || *calibrationPath == "" || *current < 0 || *target < 0 {
+		return fmt.Errorf("ledger, metrics, plan, bering, calibration, current-weight, and target-weight are required")
+	}
+	result, err := analysis.Analyze(analysis.Input{LedgerPath: *ledgerPath, MetricsPath: *metricsPath, PlanPath: *planPath, BeringDir: *beringDir, CalibrationPath: *calibrationPath, Pipeline: *pipeline, CurrentWeight: *current, TargetWeight: *target, Look: *look, NMax: *nMax, Reconciled: *reconciled})
+	if err != nil {
+		return err
+	}
+	var dst *os.File
+	if *out == "-" {
+		dst = os.Stdout
+	} else {
+		dst, err = os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer dst.Close()
+	}
+	encoder := json.NewEncoder(dst)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(result)
 }
 
 func stagePlan(args []string) error {

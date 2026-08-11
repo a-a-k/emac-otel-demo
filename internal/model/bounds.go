@@ -6,7 +6,13 @@ import (
 	"sort"
 )
 
-type Band struct{ Grid, Lower, Upper []float64 }
+type Band struct {
+	Grid, Lower, Upper []float64
+	// IntervalCensored means no location inside a histogram bucket is known.
+	// At then uses the previous boundary for the lower CDF and the next
+	// boundary for the upper CDF.
+	IntervalCensored bool `json:"interval_censored,omitempty"`
+}
 
 func (b Band) Validate() error {
 	if len(b.Grid) == 0 || len(b.Grid) != len(b.Lower) || len(b.Grid) != len(b.Upper) {
@@ -27,11 +33,30 @@ func (b Band) Validate() error {
 }
 
 func (b Band) At(x float64) (float64, float64) {
-	i := sort.Search(len(b.Grid), func(i int) bool { return b.Grid[i] > x }) - 1
-	if i < 0 {
+	if x < 0 {
 		return 0, 0
 	}
-	return b.Lower[i], b.Upper[i]
+	next := sort.Search(len(b.Grid), func(i int) bool { return b.Grid[i] >= x })
+	if next < len(b.Grid) && b.Grid[next] == x {
+		return b.Lower[next], b.Upper[next]
+	}
+	previous := next - 1
+	lower := 0.0
+	if previous >= 0 {
+		lower = b.Lower[previous]
+	}
+	if !b.IntervalCensored {
+		return lower, func() float64 {
+			if previous >= 0 {
+				return b.Upper[previous]
+			}
+			return 0
+		}()
+	}
+	if next < len(b.Grid) {
+		return lower, b.Upper[next]
+	}
+	return lower, 1
 }
 
 // Series2 computes bucket-grid recursive Makarov outer bounds without an
@@ -54,7 +79,7 @@ func Series2(a, b Band) (Band, error) {
 		grid = append(grid, x)
 	}
 	sort.Float64s(grid)
-	out := Band{Grid: grid, Lower: make([]float64, len(grid)), Upper: make([]float64, len(grid))}
+	out := Band{Grid: grid, Lower: make([]float64, len(grid)), Upper: make([]float64, len(grid)), IntervalCensored: a.IntervalCensored || b.IntervalCensored}
 	for k, t := range grid {
 		xs := append([]float64{}, a.Grid...)
 		for _, y := range b.Grid {
@@ -137,6 +162,9 @@ func Intersect(bands ...Band) (Band, error) {
 	}
 	sort.Float64s(grid)
 	out := Band{Grid: grid, Lower: make([]float64, len(grid)), Upper: make([]float64, len(grid))}
+	for _, b := range bands {
+		out.IntervalCensored = out.IntervalCensored || b.IntervalCensored
+	}
 	for i, x := range grid {
 		lo, up := 0.0, 1.0
 		for _, b := range bands {
@@ -160,7 +188,7 @@ func DKWBand(grid []float64, bucketCounts []int, intended int, alpha float64) (B
 		return Band{}, fmt.Errorf("invalid DKW input")
 	}
 	eps := math.Sqrt(math.Log(2/alpha) / (2 * float64(intended)))
-	out := Band{Grid: append([]float64(nil), grid...), Lower: make([]float64, len(grid)), Upper: make([]float64, len(grid))}
+	out := Band{Grid: append([]float64(nil), grid...), Lower: make([]float64, len(grid)), Upper: make([]float64, len(grid)), IntervalCensored: true}
 	cumulative := 0
 	last := -math.MaxFloat64
 	for i, x := range grid {
@@ -201,7 +229,7 @@ func ThreeCohort(candidate, stableInternational, stableDomestic Band, e, hL, hU 
 		grid = append(grid, x)
 	}
 	sort.Float64s(grid)
-	out := Band{Grid: grid, Lower: make([]float64, len(grid)), Upper: make([]float64, len(grid))}
+	out := Band{Grid: grid, Lower: make([]float64, len(grid)), Upper: make([]float64, len(grid)), IntervalCensored: candidate.IntervalCensored || stableInternational.IntervalCensored || stableDomestic.IntervalCensored}
 	for i, x := range grid {
 		cl, cu := candidate.At(x)
 		sil, siu := stableInternational.At(x)

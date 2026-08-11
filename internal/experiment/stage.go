@@ -4,6 +4,7 @@ import "fmt"
 
 type StageRequest struct {
 	Index         uint64  `json:"index"`
+	EvidenceIndex int     `json:"evidence_index"`
 	Phase         Phase   `json:"phase"`
 	RolloutKey    string  `json:"rollout_key"`
 	UserID        string  `json:"user_id"`
@@ -51,7 +52,8 @@ func BuildStagePlanWithPersona(runSeed []byte, runID, stageID string, weight flo
 		if intl {
 			country, currency = "Canada", "CAD"
 		}
-		plan.Requests = append(plan.Requests, StageRequest{index, phase, rk, uid, rid, intl, country, currency, bucket, branch})
+		evidenceIndex := i - warmup
+		plan.Requests = append(plan.Requests, StageRequest{index, evidenceIndex, phase, rk, uid, rid, intl, country, currency, bucket, branch})
 	}
 	return plan, nil
 }

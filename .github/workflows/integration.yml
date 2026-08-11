@@ -64,7 +64,10 @@ jobs:
           EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
           EMAC_WEIGHT: '0.10'
           DEMO_VERSION: '3.0.0'
-        run: docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml down --volumes
+        run: |
+          docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml logs --no-color > results/compose.log || true
+          docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml down --volumes
+          sudo chmod -R a+rX results
       - uses: actions/upload-artifact@v4
         if: always()
         with:

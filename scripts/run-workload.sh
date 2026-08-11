@@ -18,10 +18,10 @@ cleanup_archivers() {
 }
 trap cleanup_archivers EXIT
 
-docker run --rm --network host \
-  -e EMAC_STAGE_PLAN=/work/stage-plan.json \
-  -e POLICY_URL=http://localhost:18080 \
-  -e FRONTEND_URL=http://localhost:8080 \
+docker run --rm --network opentelemetry-demo \
+	-e EMAC_STAGE_PLAN=/work/stage-plan.json \
+	-e POLICY_URL=http://checkout-policy:8080 \
+	-e FRONTEND_URL=http://frontend:8080 \
   -e EMAC_RATE \
   -e EMAC_DURATION \
   -v "$EMAC_RESULTS:/work" \
