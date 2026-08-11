@@ -13,3 +13,16 @@ func TestFullEmaC(t *testing.T) {
 		t.Fatal("expected block")
 	}
 }
+
+func TestOracleModelAndEagerAblations(t *testing.T) {
+	oracleModel := Machine{Method: OracleModel}
+	decision, consumed := oracleModel.Step(StageInput{FeatureEvidence: true, FullLower: .80, FullUpper: .94, Target: .95, FinalLook: true})
+	if !consumed || decision != Block {
+		t.Fatalf("oracle model decision=%s consumed=%v", decision, consumed)
+	}
+	eager := Machine{Method: Eager}
+	decision, consumed = eager.Step(StageInput{FinalLook: true})
+	if !consumed || decision != Pass {
+		t.Fatalf("eager decision=%s consumed=%v", decision, consumed)
+	}
+}

@@ -34,6 +34,7 @@ const (
 	FeatureAware Method = "FeatureAware"
 	Full         Method = "FullEmaC"
 	Eager        Method = "Eager"
+	OracleModel  Method = "OracleModelEmaC"
 	Oracle       Method = "Oracle"
 )
 
@@ -85,6 +86,8 @@ func (m *Machine) Step(in StageInput) (Decision, bool) {
 		d = FullEmaC(in.Admitted, in.FullLower, in.FullUpper, target)
 	case Eager:
 		d = Pass
+	case OracleModel:
+		d = FullEmaC(in.FeatureEvidence, in.FullLower, in.FullUpper, target)
 	case Oracle:
 		d = oracleDecision(in.CurrentOracle)
 	default:

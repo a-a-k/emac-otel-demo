@@ -423,7 +423,7 @@ DONE. Intermediate REVIEW continues within the stage; REVIEW at N_max stops.
   allocation `0.05/(4*K*4)`. It applies the target-mixture 0.95 rule and
   reviews integrity failures or missing positive-mass cohort evidence.
 - Full EmaC uses admitted Bering bindings, nine marginals, and target h.
-- Eager EmaC uses raw-window bindings without admission but the same math.
+- Eager is the non-selective rollout baseline and always returns PASS.
 - Oracle-model EmaC uses ground-truth AST/bindings and target share but the
   same marginal uncertainty.
 - Sampling shadows repeat Full EmaC using pipeline-specific admission and

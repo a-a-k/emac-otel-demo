@@ -43,6 +43,7 @@ var replayMethods = []methodSpec{
 	{"Local", controller.Local, "100"},
 	{"Reactive", controller.Reactive, "100"},
 	{"FeatureAware", controller.FeatureAware, "100"},
+	{"OracleModelEmaC", controller.OracleModel, "100"},
 	{"Eager", controller.Eager, "100"},
 }
 

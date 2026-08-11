@@ -101,6 +101,11 @@ decisions:
       block: upper_at_deadline < 0.95
       unknown: REVIEW
     Eager: { decision: PASS }
+    OracleModelEmaC:
+      source: ground-truth AST and bindings with Full EmaC marginal uncertainty
+      pass: lower_at_deadline >= 0.95
+      block: upper_at_deadline < 0.95
+      unknown: REVIEW
     Oracle: { SAFE: PASS, UNSAFE: BLOCK, INDETERMINATE: REVIEW }
   virtual_trajectory:
     terminal: [BLOCK, REVIEW]

@@ -211,7 +211,8 @@ func Analyze(in Input) (Result, error) {
 		controller.FeatureAware: string(controller.FullEmaC(!conflict, feature.LowerAtDeadline, feature.UpperAtDeadline, .95)),
 		controller.Reactive:     string(oracleDecision(currentOracle.Label)),
 		controller.Local:        string(localDecision(componentGreen, positiveBranches(in.TargetWeight))),
-		controller.Eager:        string(controller.FullEmaC(!conflict, full.LowerAtDeadline, full.UpperAtDeadline, .95)),
+		controller.Eager:        string(controller.Pass),
+		controller.OracleModel:  string(controller.FullEmaC(!conflict, full.LowerAtDeadline, full.UpperAtDeadline, .95)),
 	}
 	manipulation := manipulationChecks(projected, allHistograms, in.Look, in.CurrentWeight, cal, capacity)
 	return Result{
