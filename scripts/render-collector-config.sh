@@ -9,6 +9,6 @@ fi
 
 grid_csv="$(jq -r '.histogram_grid_ms | map(tostring) | join(",")' "$calibration")"
 buckets="$(jq -r '.histogram_grid_ms | map((tostring) + "ms") | "[" + join(", ") + "]"' "$calibration")"
-sed -i -E "s#^([[:space:]]*buckets:).*$#\1 $buckets#" "$EMAC_RESULTS/collector.yaml"
+sed -i -E "s#^([[:space:]]*buckets:).*#\1 $buckets#" "$EMAC_RESULTS/collector.yaml"
 exported="$EMAC_RESULTS/histogram-grid.env"
 printf 'EMAC_HISTOGRAM_GRID_MS=%s\n' "$grid_csv" > "$exported"
