@@ -27,28 +27,39 @@ type CapacityResult struct {
 }
 
 func Capacity(k6Summary, resources, beringDir string, targetRate float64) (CapacityResult, error) {
+	return CapacityMany([]string{k6Summary}, resources, beringDir, targetRate)
+}
+
+// CapacityMany aggregates independently exported k6 segments into one stage
+// result. Segmenting a stage at evidence looks must not change the registered
+// ingress or dropped-iteration manipulation check.
+func CapacityMany(k6Summaries []string, resources, beringDir string, targetRate float64) (CapacityResult, error) {
 	result := CapacityResult{TargetRate: targetRate}
-	bytes, err := os.ReadFile(k6Summary)
-	if err != nil {
-		return result, err
+	if len(k6Summaries) == 0 {
+		return result, fmt.Errorf("at least one k6 summary is required")
 	}
-	var summary struct {
-		Metrics map[string]struct {
-			Values map[string]float64 `json:"values"`
-		} `json:"metrics"`
+	iterations, dropped, durationSeconds := 0.0, 0.0, 0.0
+	for _, path := range k6Summaries {
+		count, missed, rate, err := readK6Summary(path)
+		if err != nil {
+			return result, err
+		}
+		iterations += count
+		dropped += missed
+		if count > 0 && rate > 0 {
+			durationSeconds += count / rate
+		}
 	}
-	if err := json.Unmarshal(bytes, &summary); err != nil {
-		return result, err
+	if durationSeconds > 0 {
+		result.AchievedRate = iterations / durationSeconds
 	}
-	iterations := summary.Metrics["iterations"].Values["count"]
-	dropped := summary.Metrics["dropped_iterations"].Values["count"]
-	result.AchievedRate = summary.Metrics["iterations"].Values["rate"]
 	if iterations+dropped > 0 {
 		result.DroppedIterationsPercent = 100 * dropped / (iterations + dropped)
 	}
 	if targetRate > 0 {
 		result.IngressDeviationPercent = 100 * math.Abs(result.AchievedRate-targetRate) / targetRate
 	}
+	var err error
 	result.CPUP95Percent, result.MemoryP95Percent, err = resourceP95(resources)
 	if err != nil {
 		return result, err
@@ -80,6 +91,28 @@ func Capacity(k6Summary, resources, beringDir string, targetRate float64) (Capac
 	}
 	result.Valid = len(result.Reasons) == 0
 	return result, nil
+}
+
+func readK6Summary(path string) (float64, float64, float64, error) {
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	var summary struct {
+		Metrics map[string]struct {
+			Values map[string]float64 `json:"values"`
+		} `json:"metrics"`
+	}
+	if err := json.Unmarshal(bytes, &summary); err != nil {
+		return 0, 0, 0, err
+	}
+	iterations := summary.Metrics["iterations"].Values["count"]
+	dropped := summary.Metrics["dropped_iterations"].Values["count"]
+	rate := summary.Metrics["iterations"].Values["rate"]
+	if iterations < 0 || dropped < 0 || rate < 0 {
+		return 0, 0, 0, fmt.Errorf("invalid k6 metrics in %s", path)
+	}
+	return iterations, dropped, rate, nil
 }
 
 func resourceP95(path string) (float64, float64, error) {

@@ -291,6 +291,14 @@ controllers that share full-stream marginals but have their own sampled
 Bering evidence. The rollout-wide 95% claim applies only to the active
 pipeline.
 
+Tail selection delays complete traces by five seconds. Immediately before
+the three Bering exporters, the Collector therefore normalizes only those
+discovery copies' span end times to processing time. This makes Bering's
+30-second windows processing-time evidence windows and prevents selection
+delay from being misclassified as late telemetry. The pre-sampling Span
+Metrics branch retains original event times and durations; no normalized
+timestamp is used for a latency CDF, oracle, or manipulation check.
+
 Each run-stage-pipeline receives an independent Bering process and state.
 Every raw window is atomically archived by observation version. At a look,
 edge support is the sum of trace counts across non-overlapping archived raw

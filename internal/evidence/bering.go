@@ -148,6 +148,36 @@ func LoadProjection(path string) (ProjectionView, error) {
 	err = json.Unmarshal(b, &v)
 	return v, err
 }
+
+// ExtractProjectionSnapshot preserves Bering's complete, schema-bound
+// snapshot envelope. ProjectionView is deliberately reduced for admission
+// analysis and must never be re-encoded for strict downstream consumers such
+// as Sheaft.
+func ExtractProjectionSnapshot(input, output string) error {
+	b, err := os.ReadFile(input)
+	if err != nil {
+		return err
+	}
+	var envelope struct {
+		Available bool            `json:"available"`
+		Snapshot  json.RawMessage `json:"snapshot"`
+	}
+	if err := json.Unmarshal(b, &envelope); err != nil {
+		return err
+	}
+	if !envelope.Available || len(envelope.Snapshot) == 0 || string(envelope.Snapshot) == "null" {
+		return fmt.Errorf("Bering projection is unavailable")
+	}
+	var indented any
+	if err := json.Unmarshal(envelope.Snapshot, &indented); err != nil {
+		return err
+	}
+	out, err := json.MarshalIndent(indented, "", "  ")
+	if err != nil {
+		return err
+	}
+	return atomicWrite(output, append(out, '\n'))
+}
 func LoadArchive(dir string) ([]ProjectionView, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "raw-windows", "observation-*.json"))
 	if err != nil {

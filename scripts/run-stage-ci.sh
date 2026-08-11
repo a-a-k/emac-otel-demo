@@ -26,6 +26,9 @@ docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/ope
 trap 'docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml down --volumes' EXIT
 
 total=$((200 + EMAC_N_MAX)); duration=$(( (total + EMAC_RATE - 1) / EMAC_RATE )); export EMAC_DURATION="${duration}s"
+if [[ -s "${EMAC_CALIBRATION:-$EMAC_ROOT/protocol/calibration-v1.json}" ]]; then
+  export EMAC_INCREMENTAL=true
+fi
 ./scripts/run-workload.sh
 if [[ -s "${EMAC_CALIBRATION:-$EMAC_ROOT/protocol/calibration-v1.json}" ]]; then
   ./scripts/analyze-stage.sh

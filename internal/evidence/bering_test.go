@@ -1,6 +1,11 @@
 package evidence
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func view(observation int64, count int) ProjectionView {
 	v := ProjectionView{Observation: observation, Available: true, Snapshot: &Snapshot{}}
@@ -25,5 +30,31 @@ func TestAdmissionAcceptsEarlierConsecutiveRecurrence(t *testing.T) {
 	a := Admit(windows, view(3, 1), r, 10, false)
 	if !a.Admitted {
 		t.Fatal(a.Reasons)
+	}
+}
+
+func TestExtractProjectionSnapshotPreservesSchemaEnvelope(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "projection.json")
+	output := filepath.Join(dir, "snapshot.json")
+	raw := `{"available":true,"snapshot":{"metadata":{"schema":{"name":"io.mb3r.bering.snapshot","version":"1.3.0"}},"model":{"services":[{"id":"policy"}]}}}`
+	if err := os.WriteFile(input, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ExtractProjectionSnapshot(input, output); err != nil {
+		t.Fatal(err)
+	}
+	var snapshot map[string]any
+	b, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	metadata := snapshot["metadata"].(map[string]any)
+	schema := metadata["schema"].(map[string]any)
+	if schema["name"] != "io.mb3r.bering.snapshot" {
+		t.Fatalf("schema metadata was not preserved: %#v", snapshot)
 	}
 }

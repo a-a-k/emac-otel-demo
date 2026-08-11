@@ -34,6 +34,16 @@ processors:
   probabilistic_sampler/p05:
     hash_seed: 11096231
     sampling_percentage: 5
+  # Bering's discovery windows use span end time, while tail selection
+  # intentionally delays complete traces. Normalize only the three discovery
+  # copies to processing time immediately before export; the unsampled
+  # Span Metrics copy retains the original event times and durations.
+  transform/bering_window_time:
+    error_mode: propagate
+    trace_statements:
+      - context: span
+        statements:
+          - set(end_time, Now())
 
 connectors:
   spanmetrics:
@@ -70,7 +80,7 @@ service:
   pipelines:
     traces/full:
       receivers: [otlp]
-      processors: [memory_limiter, tail_sampling/full, batch]
+      processors: [memory_limiter, tail_sampling/full, batch, transform/bering_window_time]
       exporters: [otlphttp/bering100]
     traces/spanmetrics:
       receivers: [otlp]
@@ -78,11 +88,11 @@ service:
       exporters: [spanmetrics]
     traces/p25:
       receivers: [otlp]
-      processors: [memory_limiter, tail_sampling/p25, probabilistic_sampler/p25, batch]
+      processors: [memory_limiter, tail_sampling/p25, probabilistic_sampler/p25, batch, transform/bering_window_time]
       exporters: [otlphttp/bering25]
     traces/p05:
       receivers: [otlp]
-      processors: [memory_limiter, tail_sampling/p05, probabilistic_sampler/p05, batch]
+      processors: [memory_limiter, tail_sampling/p05, probabilistic_sampler/p05, batch, transform/bering_window_time]
       exporters: [otlphttp/bering05]
     metrics/spanmetrics:
       receivers: [spanmetrics]

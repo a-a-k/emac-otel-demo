@@ -19,6 +19,7 @@ type ReplayResult struct {
 	Methods        map[string]MethodResult `json:"methods"`
 	Identifying    bool                    `json:"identifying"`
 	IdentifyReason []string                `json:"identifiability_reasons,omitempty"`
+	Drift          []DriftResult           `json:"transportability"`
 }
 
 type MethodResult struct {
@@ -107,6 +108,17 @@ func Replay(root string, nMax int) (ReplayResult, error) {
 		}
 		methodResult.Outcome = controller.Outcomes(result.OracleLabels, methodResult.Decisions)
 		result.Methods[spec.name] = methodResult
+	}
+	for transition, currentWeight := range weights[:len(weights)-1] {
+		targetWeight := weights[transition+1]
+		if len(final[currentWeight].Leaves) == 0 || len(final[targetWeight].Leaves) == 0 {
+			continue
+		}
+		drift, _, err := compareTransition(final[currentWeight], final[targetWeight], currentWeight, targetWeight)
+		if err != nil {
+			return ReplayResult{}, err
+		}
+		result.Drift = append(result.Drift, drift...)
 	}
 	result.Identifying, result.IdentifyReason = identifiability(result, final)
 	return result, nil

@@ -64,6 +64,8 @@ func main() {
 		err = replay(os.Args[2:])
 	case "confirmatory":
 		err = confirmatory(os.Args[2:])
+	case "oracle-ledger":
+		err = oracleLedger(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -74,7 +76,39 @@ func main() {
 	}
 }
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|analyze-stage|rq1-validate|replay|confirmatory|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|analyze-stage|rq1-validate|replay|confirmatory|oracle-ledger|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+}
+
+func oracleLedger(args []string) error {
+	f := flag.NewFlagSet("oracle-ledger", flag.ContinueOnError)
+	ledgerPath := f.String("ledger", "", "policy ledger JSONL")
+	phase := f.String("phase", "oracle", "measured or oracle")
+	weight := f.Float64("weight", -1, "applied weight")
+	deadline := f.Float64("deadline-ms", 0, "frozen journey deadline")
+	n := f.Int("n", 1000, "fixed design-conditional roots")
+	alpha := f.Float64("alpha", .05, "per-weight alpha")
+	out := f.String("out", "-", "oracle label JSON path or -")
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	if *ledgerPath == "" || *weight < 0 || *deadline <= 0 || (*phase != "measured" && *phase != "oracle") {
+		return fmt.Errorf("ledger, valid phase, weight, and positive deadline are required")
+	}
+	result, err := analysis.OracleFromLedger(*ledgerPath, *phase, *weight, *deadline, *alpha, *n)
+	if err != nil {
+		return err
+	}
+	var dst *os.File
+	if *out == "-" {
+		dst = os.Stdout
+	} else {
+		dst, err = os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer dst.Close()
+	}
+	return json.NewEncoder(dst).Encode(map[string]any{"schema": "emac.oracle-ledger/v1", "phase": *phase, "weight": *weight, "n": *n, "interval": result.Interval, "label": result.Label})
 }
 
 func confirmatory(args []string) error {
@@ -174,6 +208,7 @@ func analyzeStage(args []string) error {
 	target := f.Float64("target-weight", -1, "counterfactual target weight")
 	look := f.Int("look", 0, "measured prefix size")
 	nMax := f.Int("n-max", 0, "frozen maximum stage evidence")
+	beringObservation := f.Int64("bering-observation", 0, "maximum archived Bering observation version for this look")
 	reconciled := f.Bool("reconciled", false, "prefix evidence passed registered reconciliation")
 	out := f.String("out", "-", "analysis JSON path or -")
 	if err := f.Parse(args); err != nil {
@@ -182,7 +217,7 @@ func analyzeStage(args []string) error {
 	if *ledgerPath == "" || *metricsPath == "" || *planPath == "" || *beringDir == "" || *calibrationPath == "" || *capacityPath == "" || *current < 0 || *target < 0 {
 		return fmt.Errorf("ledger, metrics, plan, bering, calibration, capacity, current-weight, and target-weight are required")
 	}
-	result, err := analysis.Analyze(analysis.Input{LedgerPath: *ledgerPath, MetricsPath: *metricsPath, PlanPath: *planPath, BeringDir: *beringDir, CalibrationPath: *calibrationPath, CapacityPath: *capacityPath, Pipeline: *pipeline, CurrentWeight: *current, TargetWeight: *target, Look: *look, NMax: *nMax, Reconciled: *reconciled})
+	result, err := analysis.Analyze(analysis.Input{LedgerPath: *ledgerPath, MetricsPath: *metricsPath, PlanPath: *planPath, BeringDir: *beringDir, CalibrationPath: *calibrationPath, CapacityPath: *capacityPath, Pipeline: *pipeline, CurrentWeight: *current, TargetWeight: *target, Look: *look, NMax: *nMax, BeringObservation: *beringObservation, Reconciled: *reconciled})
 	if err != nil {
 		return err
 	}
@@ -480,21 +515,7 @@ func extractProjection(args []string) error {
 	if *input == "" || *out == "" {
 		return fmt.Errorf("input and out are required")
 	}
-	projection, err := evidence.LoadProjection(*input)
-	if err != nil {
-		return err
-	}
-	if !projection.Available || projection.Snapshot == nil {
-		return fmt.Errorf("projection %s is unavailable", projection.Name)
-	}
-	dst, err := os.Create(*out)
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-	encoder := json.NewEncoder(dst)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(projection.Snapshot)
+	return evidence.ExtractProjectionSnapshot(*input, *out)
 }
 
 func reconcileBoundary(args []string) error {
@@ -559,17 +580,18 @@ func calibrate(args []string) error {
 
 func capacityCheck(args []string) error {
 	f := flag.NewFlagSet("capacity-check", flag.ContinueOnError)
-	summary := f.String("k6-summary", "", "k6 summary-export JSON")
+	var summaries pathsFlag
+	f.Var(&summaries, "k6-summary", "k6 summary-export JSON; repeat for segmented stages")
 	resources := f.String("resources", "", "docker stats JSONL")
 	bering := f.String("bering", "", "archived 100% Bering pipeline")
 	rate := f.Float64("rate", 0, "registered ingress rate")
 	if err := f.Parse(args); err != nil {
 		return err
 	}
-	if *summary == "" || *resources == "" || *bering == "" || *rate <= 0 {
+	if len(summaries) == 0 || *resources == "" || *bering == "" || *rate <= 0 {
 		return fmt.Errorf("k6-summary, resources, bering, and positive rate are required")
 	}
-	result, err := evaluation.Capacity(*summary, *resources, *bering, *rate)
+	result, err := evaluation.CapacityMany(summaries, *resources, *bering, *rate)
 	if err != nil {
 		return err
 	}

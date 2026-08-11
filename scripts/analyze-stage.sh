@@ -27,8 +27,11 @@ for cap in "${requested_caps[@]}"; do
   done
   if [[ " ${looks[*]} " != *" $cap "* ]]; then looks+=("$cap"); fi
   for look in "${looks[@]}"; do
+    look_manifest="$EMAC_RESULTS/looks/look-$(printf '%05d' "$look").json"
+    test -s "$look_manifest"
     for spec in 100:1 25:.25 05:.05; do
       pipeline="${spec%%:*}"; proportion="${spec##*:}"
+      observation="$(jq -r --arg pipeline "$pipeline" '.observation_versions[$pipeline]' "$look_manifest")"
       "$EMAC_RESULTS/emacctl" analyze-stage \
         --ledger "$EMAC_RESULTS/policy/ledger.jsonl" \
         --metrics "$EMAC_RESULTS/metrics/metrics.json" \
@@ -41,6 +44,7 @@ for cap in "${requested_caps[@]}"; do
         --target-weight "$target" \
         --look "$look" \
         --n-max "$cap" \
+        --bering-observation "$observation" \
         --reconciled \
         --out "$EMAC_RESULTS/analysis/analysis-cap-$(printf '%05d' "$cap")-look-$(printf '%05d' "$look")-p${pipeline}.json"
     done

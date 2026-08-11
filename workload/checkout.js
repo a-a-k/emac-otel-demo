@@ -5,10 +5,13 @@ import { SharedArray } from 'k6/data';
 
 const planDoc = JSON.parse(open(__ENV.EMAC_STAGE_PLAN));
 const requests = new SharedArray('registered-stage-plan', () => planDoc.requests);
+const requestStart = Number(__ENV.EMAC_REQUEST_START || 0);
+const requestEnd = Number(__ENV.EMAC_REQUEST_END || requests.length);
+const requestCount = Math.max(0, requestEnd - requestStart);
 const frontend = (__ENV.FRONTEND_URL || 'http://frontend:8080').replace(/\/$/, '');
 const policy = (__ENV.POLICY_URL || 'http://checkout-policy:8080').replace(/\/$/, '');
 const rate = Number(__ENV.EMAC_RATE || 5);
-const duration = __ENV.EMAC_DURATION || `${Math.ceil(requests.length / rate)}s`;
+const duration = __ENV.EMAC_DURATION || `${Math.ceil(requestCount / rate)}s`;
 
 export const options = {
   scenarios: {
@@ -57,8 +60,8 @@ function headers(v, phase) {
 }
 
 export default function () {
-  const i = exec.scenario.iterationInTest;
-  if (i >= requests.length) return;
+  const i = requestStart + exec.scenario.iterationInTest;
+  if (i >= requestEnd || i >= requests.length) return;
   const v = requests[i];
 
   // Cart population is a separate, explicitly unsampled setup trace. The

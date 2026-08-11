@@ -25,24 +25,26 @@ var branchOperations = map[string][]string{
 }
 
 type Input struct {
-	LedgerPath      string
-	MetricsPath     string
-	PlanPath        string
-	BeringDir       string
-	CalibrationPath string
-	CapacityPath    string
-	Pipeline        float64
-	CurrentWeight   float64
-	TargetWeight    float64
-	Look            int
-	NMax            int
-	Reconciled      bool
+	LedgerPath        string
+	MetricsPath       string
+	PlanPath          string
+	BeringDir         string
+	CalibrationPath   string
+	CapacityPath      string
+	Pipeline          float64
+	CurrentWeight     float64
+	TargetWeight      float64
+	Look              int
+	NMax              int
+	BeringObservation int64
+	Reconciled        bool
 }
 
 type LeafEvidence struct {
-	Intended         int        `json:"intended"`
-	CorrectAttempted int        `json:"correct_attempted"`
-	Band             model.Band `json:"band"`
+	Intended         int                `json:"intended"`
+	CorrectAttempted int                `json:"correct_attempted"`
+	Band             model.Band         `json:"band"`
+	Histogram        evidence.Histogram `json:"histogram"`
 }
 
 type Result struct {
@@ -163,7 +165,7 @@ func Analyze(in Input) (Result, error) {
 				continue
 			}
 			bands[key] = band
-			leaves[key] = LeafEvidence{Intended: c.Intended, CorrectAttempted: c.Correct, Band: band}
+			leaves[key] = LeafEvidence{Intended: c.Intended, CorrectAttempted: c.Correct, Band: band, Histogram: histogram}
 			componentGreen[key] = localGreen(c, histogram, cal.LocalDeadlinesMS[key])
 		}
 	}
@@ -184,7 +186,7 @@ func Analyze(in Input) (Result, error) {
 	if featureErr != nil {
 		conflict = true
 	}
-	admission, err := admissionAt(in.BeringDir, cutoff, in.Reconciled && !conflict)
+	admission, err := admissionAt(in.BeringDir, cutoff, in.BeringObservation, in.Reconciled && !conflict)
 	if err != nil {
 		return Result{}, err
 	}
@@ -366,7 +368,7 @@ func targetShare(plan experiment.StagePlan, look int, target, alpha float64) (st
 	return statistics.CounterfactualShare(assigned, eligible, .6, alpha)
 }
 
-func admissionAt(dir string, cutoff time.Time, reconciled bool) (evidence.Admission, error) {
+func admissionAt(dir string, cutoff time.Time, maxObservation int64, reconciled bool) (evidence.Admission, error) {
 	windows, err := evidence.LoadArchive(dir)
 	if err != nil {
 		return evidence.Admission{}, err
@@ -374,6 +376,12 @@ func admissionAt(dir string, cutoff time.Time, reconciled bool) (evidence.Admiss
 	selected := make([]evidence.ProjectionView, 0, len(windows))
 	for _, window := range windows {
 		if window.Snapshot == nil {
+			continue
+		}
+		if maxObservation > 0 {
+			if window.Observation <= maxObservation {
+				selected = append(selected, window)
+			}
 			continue
 		}
 		end, parseErr := time.Parse(time.RFC3339Nano, window.Snapshot.WindowEnd)
@@ -432,6 +440,46 @@ func rootOracle(roots map[string]counts, current, deadline, alpha float64) (Orac
 	}
 	interval, label, err := statistics.StratifiedOracle(cohorts, alpha, .95)
 	return Oracle{Interval: interval, Label: label}, err
+}
+
+func OracleFromLedger(path, phase string, weight, deadline, alpha float64, n int) (Oracle, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return Oracle{}, err
+	}
+	defer file.Close()
+	byIndex := map[int]ledger.Request{}
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
+	for scanner.Scan() {
+		var request ledger.Request
+		if err := json.Unmarshal(scanner.Bytes(), &request); err != nil {
+			return Oracle{}, err
+		}
+		if request.Phase != phase || request.EvidenceIndex < 0 || request.EvidenceIndex >= n {
+			continue
+		}
+		if _, exists := byIndex[request.EvidenceIndex]; exists {
+			return Oracle{}, fmt.Errorf("duplicate evidence index %d", request.EvidenceIndex)
+		}
+		byIndex[request.EvidenceIndex] = request
+	}
+	if err := scanner.Err(); err != nil {
+		return Oracle{}, err
+	}
+	requests := make([]ledger.Request, 0, n)
+	for i := 0; i < n; i++ {
+		request, exists := byIndex[i]
+		if !exists {
+			return Oracle{}, fmt.Errorf("missing %s oracle evidence index %d", phase, i)
+		}
+		requests = append(requests, request)
+	}
+	_, roots, conflict := project(requests, deadline)
+	if conflict {
+		return Oracle{Interval: statistics.Interval{Lower: 0, Upper: 1}, Label: statistics.Indeterminate}, nil
+	}
+	return rootOracle(roots, weight, deadline, alpha)
 }
 
 func min(a, b int) int {

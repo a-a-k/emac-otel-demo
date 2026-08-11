@@ -62,6 +62,8 @@ evidence:
   nested_sampling: true
   sampling_mode: collector_hash_seed_fnv1a_trace_id
   sampling_hash_seed: 11096231
+  bering_window_clock: processing_time_after_tail_selection
+  latency_stream_clock: original_event_time_before_sampling
   trace_admission: whole trace contains checkout-policy root with emac.phase=measured
   active_pipeline_percent: 100
   histogram_grid_ms: [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
