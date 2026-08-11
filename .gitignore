@@ -3,6 +3,7 @@
 bin/
 dist/
 results/
+rq1-validation.json
 *.tmp
 *.log
 .env.local

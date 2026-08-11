@@ -39,6 +39,7 @@ const (
 
 type StageInput struct {
 	Admitted, FeatureEvidence                                bool
+	FinalLook                                                bool
 	ComponentGreen                                           map[string]*bool
 	CurrentOracle                                            string
 	FullLower, FullUpper, FeatureLower, FeatureUpper, Target float64
@@ -90,7 +91,7 @@ func (m *Machine) Step(in StageInput) (Decision, bool) {
 		d = Review
 	}
 	m.History = append(m.History, d)
-	if d == Block || d == Review {
+	if d == Block || (d == Review && in.FinalLook) {
 		m.Terminal = true
 	}
 	return d, true

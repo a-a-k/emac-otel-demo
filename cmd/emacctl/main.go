@@ -18,6 +18,7 @@ import (
 	"github.com/a-a-k/emac-otel-demo/internal/experiment"
 	"github.com/a-a-k/emac-otel-demo/internal/model"
 	"github.com/a-a-k/emac-otel-demo/internal/statistics"
+	"github.com/a-a-k/emac-otel-demo/internal/validation"
 )
 
 func main() {
@@ -57,6 +58,10 @@ func main() {
 		err = capacityCheck(os.Args[2:])
 	case "analyze-stage":
 		err = analyzeStage(os.Args[2:])
+	case "rq1-validate":
+		err = rq1Validate(os.Args[2:])
+	case "replay":
+		err = replay(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -67,7 +72,64 @@ func main() {
 	}
 }
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|analyze-stage|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|analyze-stage|rq1-validate|replay|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+}
+
+func replay(args []string) error {
+	f := flag.NewFlagSet("replay", flag.ContinueOnError)
+	root := f.String("root", "", "full-sweep analysis root")
+	nMax := f.Int("n-max", 0, "candidate or frozen N_max")
+	out := f.String("out", "-", "replay JSON path or -")
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	if *root == "" || *nMax <= 0 {
+		return fmt.Errorf("root and n-max are required")
+	}
+	result, err := evaluation.Replay(*root, *nMax)
+	if err != nil {
+		return err
+	}
+	var dst *os.File
+	if *out == "-" {
+		dst = os.Stdout
+	} else {
+		dst, err = os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer dst.Close()
+	}
+	encoder := json.NewEncoder(dst)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(result)
+}
+
+func rq1Validate(args []string) error {
+	f := flag.NewFlagSet("rq1-validate", flag.ContinueOnError)
+	cases := f.Int("cases", 10000, "registered finite-support cases")
+	seed := f.Int64("seed", 20270811, "registered generator seed")
+	out := f.String("out", "-", "result JSON path or -")
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	result, err := validation.ValidateRQ1(*seed, *cases)
+	if err != nil {
+		return err
+	}
+	var dst *os.File
+	if *out == "-" {
+		dst = os.Stdout
+	} else {
+		dst, err = os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer dst.Close()
+	}
+	encoder := json.NewEncoder(dst)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(result)
 }
 
 func analyzeStage(args []string) error {

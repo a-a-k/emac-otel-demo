@@ -45,24 +45,26 @@ type LeafEvidence struct {
 }
 
 type Result struct {
-	Schema         string                       `json:"schema"`
-	RunID          string                       `json:"run_id"`
-	StageID        string                       `json:"stage_id"`
-	Pipeline       float64                      `json:"pipeline"`
-	CurrentWeight  float64                      `json:"current_weight"`
-	TargetWeight   float64                      `json:"target_weight"`
-	Look           int                          `json:"look"`
-	AlphaStar      float64                      `json:"alpha_star"`
-	TargetShare    statistics.TargetShare       `json:"target_share"`
-	Admission      evidence.Admission           `json:"admission"`
-	Leaves         map[string]LeafEvidence      `json:"leaves"`
-	Full           model.CompileOutput          `json:"full_emac_bound"`
-	FeatureAware   model.CompileOutput          `json:"feature_aware_bound"`
-	CurrentOracle  Oracle                       `json:"current_oracle"`
-	ComponentGreen map[string]*bool             `json:"component_green"`
-	Decisions      map[controller.Method]string `json:"decisions"`
-	EvidenceCutoff time.Time                    `json:"evidence_cutoff"`
-	EvidenceDigest string                       `json:"evidence_scope"`
+	Schema           string                       `json:"schema"`
+	RunID            string                       `json:"run_id"`
+	StageID          string                       `json:"stage_id"`
+	Pipeline         float64                      `json:"pipeline"`
+	CurrentWeight    float64                      `json:"current_weight"`
+	TargetWeight     float64                      `json:"target_weight"`
+	Look             int                          `json:"look"`
+	AlphaStar        float64                      `json:"alpha_star"`
+	TargetShare      statistics.TargetShare       `json:"target_share"`
+	Admission        evidence.Admission           `json:"admission"`
+	Leaves           map[string]LeafEvidence      `json:"leaves"`
+	Full             model.CompileOutput          `json:"full_emac_bound"`
+	FeatureAware     model.CompileOutput          `json:"feature_aware_bound"`
+	CurrentOracle    Oracle                       `json:"current_oracle"`
+	EvaluationOracle Oracle                       `json:"evaluation_oracle"`
+	ComponentGreen   map[string]*bool             `json:"component_green"`
+	Decisions        map[controller.Method]string `json:"decisions"`
+	EvidenceCutoff   time.Time                    `json:"evidence_cutoff"`
+	EvidenceDigest   string                       `json:"evidence_scope"`
+	IntegrityValid   bool                         `json:"integrity_valid"`
 }
 
 type Oracle struct {
@@ -150,9 +152,21 @@ func Analyze(in Input) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	currentOracle, err := currentOracle(roots, in.CurrentWeight, cal.JourneyDeadlineMS, len(looks))
+	currentOracle, err := rootOracle(roots, in.CurrentWeight, cal.JourneyDeadlineMS, .05/(4*float64(len(looks))))
 	if err != nil {
 		return Result{}, err
+	}
+	oracleRequests, err := loadRequests(in.LedgerPath, min(1000, in.Look))
+	if err != nil {
+		return Result{}, err
+	}
+	_, oracleRoots, oracleConflict := project(oracleRequests, cal.JourneyDeadlineMS)
+	evaluationOracle, err := rootOracle(oracleRoots, in.CurrentWeight, cal.JourneyDeadlineMS, .05)
+	if err != nil {
+		return Result{}, err
+	}
+	if oracleConflict {
+		evaluationOracle = Oracle{Interval: statistics.Interval{Lower: 0, Upper: 1}, Label: statistics.Indeterminate}
 	}
 	decisions := map[controller.Method]string{
 		controller.Full:         string(controller.FullEmaC(admission.Admitted, full.LowerAtDeadline, full.UpperAtDeadline, .95)),
@@ -165,8 +179,8 @@ func Analyze(in Input) (Result, error) {
 		Schema: "emac.stage-analysis/v1", RunID: plan.RunID, StageID: plan.StageID, Pipeline: in.Pipeline,
 		CurrentWeight: in.CurrentWeight, TargetWeight: in.TargetWeight, Look: in.Look, AlphaStar: alphaStar,
 		TargetShare: share, Admission: admission, Leaves: leaves, Full: full, FeatureAware: feature,
-		CurrentOracle: currentOracle, ComponentGreen: componentGreen, Decisions: decisions,
-		EvidenceCutoff: cutoff, EvidenceDigest: fmt.Sprintf("first-%d-measured-roots", in.Look),
+		CurrentOracle: currentOracle, EvaluationOracle: evaluationOracle, ComponentGreen: componentGreen, Decisions: decisions,
+		EvidenceCutoff: cutoff, EvidenceDigest: fmt.Sprintf("first-%d-measured-roots", in.Look), IntegrityValid: !conflict,
 	}, nil
 }
 
@@ -354,7 +368,7 @@ func featureBound(histograms map[evidence.HistogramKey]evidence.Histogram, roots
 	return model.CompileOutput{Journey: journey, Deadline: deadline, LowerAtDeadline: lower, UpperAtDeadline: upper}, nil
 }
 
-func currentOracle(roots map[string]counts, current, deadline float64, k int) (Oracle, error) {
+func rootOracle(roots map[string]counts, current, deadline, alpha float64) (Oracle, error) {
 	masses := map[string]float64{"candidate": .6 * current, "stable_international": .6 * (1 - current), "stable_domestic": .4}
 	cohorts := make([]statistics.CohortCount, 0, 3)
 	for _, branch := range []string{"candidate", "stable_international", "stable_domestic"} {
@@ -366,8 +380,15 @@ func currentOracle(roots map[string]counts, current, deadline float64, k int) (O
 		}
 		cohorts = append(cohorts, statistics.CohortCount{Name: branch, Successes: successes, Trials: roots[branch].Intended, DesignMass: masses[branch]})
 	}
-	interval, label, err := statistics.StratifiedOracle(cohorts, .05/(4*float64(k)), .95)
+	interval, label, err := statistics.StratifiedOracle(cohorts, alpha, .95)
 	return Oracle{Interval: interval, Label: label}, err
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func localGreen(c counts, histogram evidence.Histogram, deadline float64) *bool {

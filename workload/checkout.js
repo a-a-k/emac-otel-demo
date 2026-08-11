@@ -81,7 +81,7 @@ export default function () {
     email: 'emac@example.invalid',
     creditCard: { creditCardNumber: '4432801561520454', creditCardCvv: 672, creditCardExpirationYear: 2039, creditCardExpirationMonth: 1 },
   };
-  const response = http.post(`${policy}/api/checkout?currencyCode=${v.currency}`,
+  const response = http.post(`${policy}/api/checkout?currencyCode=${v.currency}&userId=${v.user_id}`,
     JSON.stringify(checkout),
     { headers: headers(v, v.phase), tags: { emac_phase: v.phase, emac_branch: v.branch, emac_operation: 'policy_root' } });
 	let body;

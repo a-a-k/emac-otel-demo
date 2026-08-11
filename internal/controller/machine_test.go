@@ -4,12 +4,22 @@ import "testing"
 
 func TestMachineStopsWithoutLeakage(t *testing.T) {
 	m := Machine{Method: Full}
-	d, ok := m.Step(StageInput{Admitted: false})
+	d, ok := m.Step(StageInput{Admitted: false, FinalLook: true})
 	if !ok || d != Review {
 		t.Fatal(d)
 	}
 	if _, ok = m.Step(StageInput{Admitted: true, FullLower: 1, FullUpper: 1}); ok {
 		t.Fatal("terminal machine consumed later evidence")
+	}
+}
+
+func TestReviewContinuesUntilFinalLook(t *testing.T) {
+	m := Machine{Method: Full}
+	if decision, ok := m.Step(StageInput{Admitted: false}); !ok || decision != Review || m.Terminal {
+		t.Fatalf("intermediate decision=%s ok=%v terminal=%v", decision, ok, m.Terminal)
+	}
+	if decision, ok := m.Step(StageInput{Admitted: true, FullLower: 1, FullUpper: 1}); !ok || decision != Pass {
+		t.Fatalf("later decision=%s ok=%v", decision, ok)
 	}
 }
 func TestLocalUnknownAndRed(t *testing.T) {

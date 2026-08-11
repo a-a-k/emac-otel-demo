@@ -18,6 +18,10 @@ cleanup_archivers() {
 }
 trap cleanup_archivers EXIT
 
+# k6 runs as a nonroot UID and writes through the bind mount.
+touch "$EMAC_RESULTS/k6-summary.json"
+chmod 0666 "$EMAC_RESULTS/k6-summary.json"
+
 docker run --rm --network opentelemetry-demo \
 	-e EMAC_STAGE_PLAN=/work/stage-plan.json \
 	-e POLICY_URL=http://checkout-policy:8080 \
