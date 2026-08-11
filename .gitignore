@@ -1,0 +1,8 @@
+.work/
+.cache/
+bin/
+dist/
+results/
+*.tmp
+*.log
+.env.local

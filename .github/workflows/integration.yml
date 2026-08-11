@@ -1,0 +1,68 @@
+name: integration
+on:
+  workflow_dispatch:
+    inputs:
+      rate:
+        description: checkout requests per second
+        type: choice
+        options: ['5', '2']
+        default: '5'
+      measured:
+        description: measured roots
+        type: number
+        default: 1000
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - name: Create isolated stage
+        env:
+          EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
+          EMAC_WEIGHT: '0.10'
+        run: |
+          mkdir -p results/{policy,metrics,flagd,sheaft,bering/{100,25,05}}
+          go run ./cmd/emacctl stage-plan --seed "$EMAC_RUN_SEED" --run "integration-${GITHUB_RUN_ID}" --stage 10 --weight "$EMAC_WEIGHT" --warmup 200 --measured '${{ inputs.measured }}' --out results/stage-plan.json
+          go run ./cmd/emacctl flag-config --weight "$EMAC_WEIGHT" --out results/flagd/demo.flagd.json
+      - name: Start pinned demo and EmaC overlay
+        env:
+          EMAC_ROOT: ${{ github.workspace }}
+          EMAC_RESULTS: ${{ github.workspace }}/results
+          EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
+          EMAC_WEIGHT: '0.10'
+        run: docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml up -d --build --wait
+      - name: Run registered workload
+        env:
+          EMAC_RATE: ${{ inputs.rate }}
+          EMAC_ROOT: ${{ github.workspace }}
+          EMAC_RESULTS: ${{ github.workspace }}/results
+          EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
+          EMAC_WEIGHT: '0.10'
+        run: |
+          total=$((200 + ${{ inputs.measured }}))
+          duration=$(( (total + EMAC_RATE - 1) / EMAC_RATE ))
+          export EMAC_DURATION="${duration}s"
+          ./scripts/run-workload.sh
+      - name: Stop stack
+        if: always()
+        env:
+          EMAC_ROOT: ${{ github.workspace }}
+          EMAC_RESULTS: ${{ github.workspace }}/results
+          EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
+          EMAC_WEIGHT: '0.10'
+        run: docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml down --volumes
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-evidence
+          path: results
+          if-no-files-found: error
+          retention-days: 30

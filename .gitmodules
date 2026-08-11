@@ -1,0 +1,9 @@
+[submodule "third_party/opentelemetry-demo"]
+	path = third_party/opentelemetry-demo
+	url = https://github.com/open-telemetry/opentelemetry-demo.git
+[submodule "third_party/bering"]
+	path = third_party/bering
+	url = https://github.com/MB3R-Lab/Bering.git
+[submodule "third_party/sheaft"]
+	path = third_party/sheaft
+	url = https://github.com/MB3R-Lab/Sheaft.git

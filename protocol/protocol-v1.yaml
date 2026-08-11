@@ -1,0 +1,141 @@
+schema: emac.protocol/v1
+status: pilot-candidate
+normative_document: SCIENTIFIC_PROTOCOL.md
+
+pins:
+  opentelemetry_demo:
+    tag: 3.0.0
+    commit: 1755859a9de82c2e5e225be68abc401a5ebf2b4f
+  bering: { version: v1.0.0, schema: 1.3.0 }
+  sheaft: { version: v1.2.0, role: advisory }
+  collector:
+    version: 0.157.0
+    histogram_unit: ms
+    image_amd64: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.157.0@sha256:4eb842091c796156d4d3c994eb22ba793590f5723719dbf6b8436cb4dfc17f48
+
+identity:
+  derivation: RFC5869-HMAC-SHA256
+  namespace_rollout: 10962b31-d2f9-54f9-b51c-d1ef71c2e402
+  namespace_user: a2451f2d-2af5-5001-9a31-0c3c52a87011
+  namespace_request: 47c295e8-4c91-5452-b1b7-4dc7182240a9
+  test_vector:
+    run_seed_utf8: test-seed
+    run_id: r1
+    stage_id: "10"
+    request_index: 1
+    rollout_key: a33b6418-e488-5d97-bfcf-4244d0601156
+    user_id: 8d156f3d-6ec4-578d-97fe-f1ded6bc8e36
+    request_id: 8051be38-9132-54fc-989a-454f84c3d7e3
+    bucket: 0.05963951879416274
+  assignment: candidate iff international AND bucket < weight
+
+workload:
+  products: [OLJCESPC7Z, 66VCHSJNUP]
+  quantity_each: 1
+  persona_blocks: { international: 6, domestic: 4, block_size: 10 }
+  international: { country: Canada, currency: CAD }
+  domestic: { country: United States, currency: USD }
+  phases: [setup, warmup, measured, oracle]
+  warmup_requests: 200
+  rates_per_second: [5, 2]
+  controller_weights: [10, 25, 50, 75, 100]
+  reference_weight: 0
+  capacity_all_eligible: true
+
+journey:
+  success_target: 0.95
+  cohorts: [candidate, stable_international, stable_domestic]
+  candidate: [policy.residual.candidate, CartService/GetCart, CurrencyService/GetSupportedCurrencies, Shipping/POST_get-quote, Frontend/POST_api_checkout.candidate]
+  stable_international: [policy.residual.stable_international, Frontend/POST_api_checkout.stable_international]
+  stable_domestic: [policy.residual.stable_domestic, Frontend/POST_api_checkout.stable_domestic]
+  eligibility_mass: 0.6
+  root_correctness: status_200 AND valid_schema AND nonempty_order_and_tracking AND exactly_two_items
+  negative_residual_tolerance_us: 1
+
+evidence:
+  bering_window_seconds: 30
+  bering_recurrence_windows: 2
+  cumulative_edge_floor: 10
+  spanmetrics_flush_seconds: 10
+  spanmetrics_dimensions: [emac.operation, emac.branch, emac.correct, emac.run_id, emac.stage_id]
+  trace_pipelines_percent: [100, 25, 5]
+  nested_sampling: true
+  sampling_mode: collector_hash_seed_fnv1a_trace_id
+  sampling_hash_seed: 11096231
+  trace_admission: whole trace contains checkout-policy root with emac.phase=measured
+  active_pipeline_percent: 100
+  histogram_grid_ms: [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
+  compiler_looks: [1000, 2000, 4000, 8000]
+  n_max_grid: [1000, 2000, 4000, 8000, 12000, 16000, 20000]
+  n_max: null
+  alpha_rollout: 0.05
+  confidence_budget: alpha/(4*K*(9+1))
+
+decisions:
+  full_emac:
+    pass: admitted AND lower_at_deadline >= 0.95
+    block: admitted AND upper_at_deadline < 0.95
+    review: otherwise
+  inadmissible: REVIEW
+  review_at_n_max: terminal
+  controller_start_weight: 10
+  first_transition: 10->25
+  maximum_decision_stages: 4
+  baselines:
+    Local:
+      source: frozen component SLOs for positive-mass target cohorts
+      pass: every component GREEN
+      block: any component RED
+      unknown: REVIEW
+    Reactive:
+      source: stratified current-weight root oracle interval
+      pass: SAFE
+      block: UNSAFE
+      unknown: REVIEW
+    FeatureAware:
+      source: cohort-specific root CDFs and the same target h interval as Full EmaC
+      confidence: same rollout-wide allocation as Full EmaC
+      pass: lower_at_deadline >= 0.95
+      block: upper_at_deadline < 0.95
+      unknown: REVIEW
+    Eager: { decision: PASS }
+    Oracle: { SAFE: PASS, UNSAFE: BLOCK, INDETERMINATE: REVIEW }
+  virtual_trajectory:
+    terminal: [BLOCK, REVIEW]
+    post_terminal_evidence: forbidden
+
+oracle:
+  n_requests: 1000
+  alpha_per_weight: 0.05
+  strata: [candidate, stable_international, stable_domestic]
+  interval: Clopper-Pearson with alpha/3 per stratum
+  safe: mixture_lower >= 0.95
+  unsafe: mixture_upper < 0.95
+  otherwise: INDETERMINATE
+  zero_count: { interval: [0, 1], design_mass: 0 }
+
+manipulation:
+  component_success_degradation_pp_max: 1
+  correct_attempted_p95_ratio_max: 1.10
+  residual_p95_ratio_max: 1.10
+  ingress_tolerance_percent: 2
+  dropped_iterations_percent_max: 1
+  cpu_p95_percent_max: 70
+  memory_percent_max: 80
+  telemetry_drops_max: 0
+  late_spans_max: 0
+  analysis: intention_to_treat
+
+calibration_lock:
+  freezes: [journey_deadline, local_deadlines, ingress, histogram_grid, manipulation_thresholds]
+  n_max_rule: minimum grid value satisfying every identifiability criterion
+  manual_retuning: forbidden
+
+confirmatory:
+  paired_runs: 40
+  outcomes: [A, Z]
+  comparisons: [Local, Reactive, FeatureAware]
+  tests: 6
+  test: two-sided exact McNemar without continuity correction
+  multiplicity: Holm FWER 0.05
+  power_registered: 0.8822

@@ -1,0 +1,24 @@
+server:
+  listen_address: ":4318"
+  grpc_listen_address: ":4317"
+  max_request_bytes: 52428800
+runtime:
+  flush_interval: 2s
+  window_size: 30s
+  max_in_memory_spans: 200000
+  late_span_policy: drop
+  reconciliation:
+    enabled: true
+    state_path: /var/lib/bering/reconciliation-state.json
+    report_path: /var/lib/bering/reconciliation-report.json
+    summary_path: /var/lib/bering/reconciliation-summary.md
+    raw_window_path: /var/lib/bering/latest-raw-window.json
+    stable_core_path: /var/lib/bering/latest-stable-core.json
+    minimum_opportunity_windows: 2
+    stable_core_min_belief: 0.7
+    stable_core_min_activity: 0.35
+sink:
+  directory: /var/lib/bering/snapshots
+  latest_path: /var/lib/bering/latest-snapshot.json
+  signal_quality_path: /var/lib/bering/latest-signal-quality.json
+logging: { structured: true }

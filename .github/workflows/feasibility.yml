@@ -1,0 +1,50 @@
+name: feasibility-pilot
+on:
+  workflow_dispatch:
+    inputs:
+      n_max:
+        description: registered N_max candidate from the protocol grid
+        type: choice
+        options: ['1000', '2000', '4000', '8000', '12000', '16000', '20000']
+        default: '4000'
+      rate:
+        type: choice
+        options: ['5', '2']
+        default: '5'
+
+permissions: { contents: read }
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Require frozen pilot tag
+        run: git rev-parse pilot-protocol-v1
+
+  stage:
+    needs: guard
+    strategy:
+      fail-fast: false
+      matrix: { weight: [10, 25, 50, 75, 100] }
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - name: Execute isolated full-sweep stage
+        env:
+          EMAC_WEIGHT: ${{ matrix.weight }}
+          EMAC_N_MAX: ${{ inputs.n_max }}
+          EMAC_RATE: ${{ inputs.rate }}
+        run: ./scripts/run-stage-ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: feasibility-weight-${{ matrix.weight }}
+          path: results
+          if-no-files-found: error
+          retention-days: 90

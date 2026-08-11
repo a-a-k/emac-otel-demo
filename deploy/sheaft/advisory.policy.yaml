@@ -1,0 +1,5 @@
+mode: warn
+default_action: warn
+global_threshold: 0.0
+failure_probability: 0.01
+trials: 1000

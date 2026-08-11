@@ -1,0 +1,92 @@
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1024
+  batch:
+    timeout: 1s
+  tail_sampling/full: &emac_tail_sampling
+    decision_wait: 5s
+    num_traces: 50000
+    expected_new_traces_per_sec: 20
+    policies:
+      - name: measured-policy-root
+        type: string_attribute
+        string_attribute:
+          key: emac.phase
+          values: [measured]
+  tail_sampling/p25: *emac_tail_sampling
+  tail_sampling/p05: *emac_tail_sampling
+  tail_sampling/spanmetrics: *emac_tail_sampling
+  filter/spanmetrics:
+    error_mode: propagate
+    traces:
+      span:
+        - 'attributes["emac.correct"] != true'
+  probabilistic_sampler/p25:
+    hash_seed: 11096231
+    sampling_percentage: 25
+  probabilistic_sampler/p05:
+    hash_seed: 11096231
+    sampling_percentage: 5
+
+connectors:
+  spanmetrics:
+    histogram:
+      unit: ms
+      explicit:
+        buckets: [1ms, 2ms, 5ms, 10ms, 20ms, 50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s, 10s]
+    dimensions:
+      - { name: emac.operation }
+      - { name: emac.branch }
+      - { name: emac.correct }
+      - { name: emac.run_id }
+      - { name: emac.stage_id }
+    aggregation_temporality: AGGREGATION_TEMPORALITY_DELTA
+    metrics_flush_interval: 10s
+
+exporters:
+  otlphttp/bering100: { endpoint: http://bering100:4318 }
+  otlphttp/bering25: { endpoint: http://bering25:4318 }
+  otlphttp/bering05: { endpoint: http://bering05:4318 }
+  file/metrics:
+    path: /var/lib/emac/metrics/metrics.json
+    rotation: { max_megabytes: 100, max_days: 1, max_backups: 10 }
+  debug: { verbosity: basic }
+
+service:
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus: { host: 0.0.0.0, port: 8888 }
+  pipelines:
+    traces/full:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling/full, batch]
+      exporters: [otlphttp/bering100]
+    traces/spanmetrics:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling/spanmetrics, filter/spanmetrics, batch]
+      exporters: [spanmetrics]
+    traces/p25:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling/p25, probabilistic_sampler/p25, batch]
+      exporters: [otlphttp/bering25]
+    traces/p05:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling/p05, probabilistic_sampler/p05, batch]
+      exporters: [otlphttp/bering05]
+    metrics/spanmetrics:
+      receivers: [spanmetrics]
+      exporters: [file/metrics]
+    metrics/policy:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [file/metrics]
