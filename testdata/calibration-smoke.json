@@ -1,0 +1,29 @@
+{
+  "schema": "emac.calibration-smoke/v1",
+  "journey_deadline_ms": 1000,
+  "local_deadlines_ms": {
+    "policy.residual|candidate": 10000,
+    "CartService/GetCart|candidate": 10000,
+    "CurrencyService/GetSupportedCurrencies|candidate": 10000,
+    "Shipping/POST get-quote|candidate": 10000,
+    "Frontend/POST api/checkout|candidate": 10000,
+    "policy.residual|stable_international": 10000,
+    "Frontend/POST api/checkout|stable_international": 10000,
+    "policy.residual|stable_domestic": 10000,
+    "Frontend/POST api/checkout|stable_domestic": 10000
+  },
+  "histogram_grid_ms": [31.25, 62.5, 93.75, 125, 156.25, 187.5, 218.75, 250, 281.25, 312.5, 343.75, 375, 406.25, 437.5, 468.75, 500, 531.25, 562.5, 593.75, 625, 656.25, 687.5, 718.75, 750, 781.25, 812.5, 843.75, 875, 906.25, 937.5, 968.75, 1000, 1062.5, 1125, 1187.5, 1250, 1312.5, 1375, 1437.5, 1500, 1562.5, 1625, 1687.5, 1750, 1812.5, 1875, 1937.5, 2000],
+  "stable_runs": 0,
+  "candidate_runs": 0,
+  "manipulation_baselines": {
+    "policy.residual|candidate": {"success_rate": 1, "correct_attempted_p95_ms": 1000},
+    "CartService/GetCart|candidate": {"success_rate": 1, "correct_attempted_p95_ms": 1000},
+    "CurrencyService/GetSupportedCurrencies|candidate": {"success_rate": 1, "correct_attempted_p95_ms": 1000},
+    "Shipping/POST get-quote|candidate": {"success_rate": 1, "correct_attempted_p95_ms": 1000},
+    "Frontend/POST api/checkout|candidate": {"success_rate": 1, "correct_attempted_p95_ms": 1000},
+    "policy.residual|stable_international": {"success_rate": 1, "correct_attempted_p95_ms": 1000},
+    "Frontend/POST api/checkout|stable_international": {"success_rate": 1, "correct_attempted_p95_ms": 1000},
+    "policy.residual|stable_domestic": {"success_rate": 1, "correct_attempted_p95_ms": 1000},
+    "Frontend/POST api/checkout|stable_domestic": {"success_rate": 1, "correct_attempted_p95_ms": 1000}
+  }
+}

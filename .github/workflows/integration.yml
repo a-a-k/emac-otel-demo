@@ -28,10 +28,12 @@ jobs:
         env:
           EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
           EMAC_WEIGHT: '0.10'
+          EMAC_CALIBRATION: ${{ github.workspace }}/testdata/calibration-smoke.json
         run: |
           mkdir -p results/{policy,metrics,flagd,sheaft,bering/{100,25,05}}
           chmod 0777 results/policy
           EMAC_ROOT="$GITHUB_WORKSPACE" EMAC_RESULTS="$GITHUB_WORKSPACE/results" ./scripts/render-collector-config.sh
+          cat results/histogram-grid.env >> "$GITHUB_ENV"
           go run ./cmd/emacctl stage-plan --seed "$EMAC_RUN_SEED" --run "integration-${GITHUB_RUN_ID}" --stage 10 --weight "$EMAC_WEIGHT" --warmup 200 --measured '${{ inputs.measured }}' --out results/stage-plan.json
           go run ./cmd/emacctl flag-config --weight "$EMAC_WEIGHT" --out results/flagd/demo.flagd.json
       - name: Start pinned demo and EmaC overlay
@@ -51,12 +53,18 @@ jobs:
           EMAC_RESULTS: ${{ github.workspace }}/results
           EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
           EMAC_WEIGHT: '0.10'
+          EMAC_N_MAX: ${{ inputs.measured }}
+          EMAC_INCREMENTAL: 'true'
+          EMAC_ANALYSIS_CAPS: ${{ inputs.measured }}
+          EMAC_CALIBRATION: ${{ github.workspace }}/testdata/calibration-smoke.json
+          EMAC_JOURNEY_DEADLINE_MS: '1000'
           DEMO_VERSION: '3.0.0'
         run: |
           total=$((200 + ${{ inputs.measured }}))
           duration=$(( (total + EMAC_RATE - 1) / EMAC_RATE ))
           export EMAC_DURATION="${duration}s"
           ./scripts/run-workload.sh
+          ./scripts/analyze-stage.sh
       - name: Stop stack
         if: always()
         env:
