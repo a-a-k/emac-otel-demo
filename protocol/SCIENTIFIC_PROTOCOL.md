@@ -36,9 +36,9 @@ induction over the AST yields an outer bound for the journey CDF.
 
 ## 2. System and immutable versions
 
-The canonical repository is private until submission-artifact anonymity rules
-are known. It contains no prior traces, scripts, configurations, results, or
-paper sources.
+The canonical implementation repository is public at
+`https://github.com/a-a-k/emac-otel-demo`. It contains no prior traces,
+scripts, configurations, results, or paper sources.
 
 Pinned dependencies are recorded in `tools.lock.yaml`:
 

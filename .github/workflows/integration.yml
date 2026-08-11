@@ -38,7 +38,10 @@ jobs:
           EMAC_RESULTS: ${{ github.workspace }}/results
           EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
           EMAC_WEIGHT: '0.10'
-        run: docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml up -d --build --wait
+          DEMO_VERSION: '3.0.0'
+        run: |
+          docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml build checkout-policy
+          docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml up -d --no-build --wait --scale load-generator=0 --scale flagd-ui=0 --scale telemetry-docs=0 --scale frontend-proxy=0
       - name: Run registered workload
         env:
           EMAC_RATE: ${{ inputs.rate }}
@@ -46,6 +49,7 @@ jobs:
           EMAC_RESULTS: ${{ github.workspace }}/results
           EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
           EMAC_WEIGHT: '0.10'
+          DEMO_VERSION: '3.0.0'
         run: |
           total=$((200 + ${{ inputs.measured }}))
           duration=$(( (total + EMAC_RATE - 1) / EMAC_RATE ))
@@ -58,6 +62,7 @@ jobs:
           EMAC_RESULTS: ${{ github.workspace }}/results
           EMAC_RUN_SEED: integration-${{ github.run_id }}-${{ github.run_attempt }}
           EMAC_WEIGHT: '0.10'
+          DEMO_VERSION: '3.0.0'
         run: docker compose --env-file third_party/opentelemetry-demo/.env -f third_party/opentelemetry-demo/compose.yaml -f deploy/compose.emac.yaml down --volumes
       - uses: actions/upload-artifact@v4
         if: always()

@@ -22,7 +22,6 @@ export const options = {
       gracefulStop: '30s',
     },
   },
-  thresholds: { dropped_iterations: ['rate<0.01'] },
   systemTags: ['status', 'method', 'url', 'name', 'scenario'],
 };
 

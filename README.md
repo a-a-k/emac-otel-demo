@@ -5,8 +5,8 @@ on the OpenTelemetry Demo.
 
 The normative scientific design is
 [`protocol/SCIENTIFIC_PROTOCOL.md`](protocol/SCIENTIFIC_PROTOCOL.md). The
-repository is intentionally private while submission-artifact anonymity rules
-remain unsettled.
+canonical public repository is
+[`a-a-k/emac-otel-demo`](https://github.com/a-a-k/emac-otel-demo).
 
 The repository contains the independent experiment, not the manuscript's old
 replay artifacts. OpenTelemetry Demo, Bering, and Sheaft are pinned submodules;

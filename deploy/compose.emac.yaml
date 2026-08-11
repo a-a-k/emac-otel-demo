@@ -9,21 +9,21 @@ services:
       - "8888:8888"
 
   bering100:
-    image: ghcr.io/mb3r-lab/bering:v1.0.0
+    image: ghcr.io/mb3r-lab/bering:v1.0.0@sha256:019cd1e4e22eed1323ce788ac03216014d6b1989b451caafe013143507628d3f
     command: ["serve", "--config", "/etc/bering/serve.yaml"]
     volumes:
       - ${EMAC_ROOT}/deploy/bering/serve.yaml:/etc/bering/serve.yaml:ro
       - ${EMAC_RESULTS}/bering/100:/var/lib/bering
 
   bering25:
-    image: ghcr.io/mb3r-lab/bering:v1.0.0
+    image: ghcr.io/mb3r-lab/bering:v1.0.0@sha256:019cd1e4e22eed1323ce788ac03216014d6b1989b451caafe013143507628d3f
     command: ["serve", "--config", "/etc/bering/serve.yaml"]
     volumes:
       - ${EMAC_ROOT}/deploy/bering/serve.yaml:/etc/bering/serve.yaml:ro
       - ${EMAC_RESULTS}/bering/25:/var/lib/bering
 
   bering05:
-    image: ghcr.io/mb3r-lab/bering:v1.0.0
+    image: ghcr.io/mb3r-lab/bering:v1.0.0@sha256:019cd1e4e22eed1323ce788ac03216014d6b1989b451caafe013143507628d3f
     command: ["serve", "--config", "/etc/bering/serve.yaml"]
     volumes:
       - ${EMAC_ROOT}/deploy/bering/serve.yaml:/etc/bering/serve.yaml:ro

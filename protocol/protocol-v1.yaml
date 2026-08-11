@@ -6,7 +6,7 @@ pins:
   opentelemetry_demo:
     tag: 3.0.0
     commit: 1755859a9de82c2e5e225be68abc401a5ebf2b4f
-  bering: { version: v1.0.0, commit: d858f09a8cca8edf302646a54b28412d158c0ec2, schema: 1.3.0 }
+  bering: { version: v1.0.0, commit: d858f09a8cca8edf302646a54b28412d158c0ec2, image_amd64_digest: "sha256:019cd1e4e22eed1323ce788ac03216014d6b1989b451caafe013143507628d3f", schema: 1.3.0 }
   sheaft: { version: v1.2.0, commit: e3fb8d2a487b3e16a80bbaafdc9b0e85354d4f3b, role: advisory }
   collector:
     version: 0.157.0

@@ -10,7 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/a-a-k/emac-otel-demo/internal/calibration"
 	"github.com/a-a-k/emac-otel-demo/internal/controller"
+	"github.com/a-a-k/emac-otel-demo/internal/evaluation"
 	"github.com/a-a-k/emac-otel-demo/internal/evidence"
 	"github.com/a-a-k/emac-otel-demo/internal/experiment"
 	"github.com/a-a-k/emac-otel-demo/internal/model"
@@ -48,6 +50,10 @@ func main() {
 		err = extractProjection(os.Args[2:])
 	case "reconcile-boundary":
 		err = reconcileBoundary(os.Args[2:])
+	case "calibrate":
+		err = calibrate(os.Args[2:])
+	case "capacity-check":
+		err = capacityCheck(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -58,7 +64,7 @@ func main() {
 	}
 }
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: emacctl <stage-plan|flag-config|calibrate|capacity-check|compile|admit|reconcile|reconcile-metrics|reconcile-boundary|extract-projection|oracle|target-share|decide|watch-bering> [flags]")
 }
 
 func stagePlan(args []string) error {
@@ -377,6 +383,67 @@ func reconcileBoundary(args []string) error {
 	}
 	if !result.Valid {
 		return fmt.Errorf("policy/k6 boundary reconciliation failed")
+	}
+	return nil
+}
+
+type pathsFlag []string
+
+func (p *pathsFlag) String() string { return fmt.Sprint([]string(*p)) }
+func (p *pathsFlag) Set(value string) error {
+	*p = append(*p, value)
+	return nil
+}
+
+func calibrate(args []string) error {
+	f := flag.NewFlagSet("calibrate", flag.ContinueOnError)
+	var stable, candidate pathsFlag
+	f.Var(&stable, "stable-ledger", "weight-0 ledger; repeat exactly three times")
+	f.Var(&candidate, "candidate-ledger", "all-eligible candidate ledger; repeat exactly three times")
+	out := f.String("out", "-", "calibration JSON path or -")
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	result, err := calibration.Build(stable, candidate)
+	if err != nil {
+		return err
+	}
+	var dst *os.File
+	if *out == "-" {
+		dst = os.Stdout
+	} else {
+		dst, err = os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer dst.Close()
+	}
+	encoder := json.NewEncoder(dst)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(result)
+}
+
+func capacityCheck(args []string) error {
+	f := flag.NewFlagSet("capacity-check", flag.ContinueOnError)
+	summary := f.String("k6-summary", "", "k6 summary-export JSON")
+	resources := f.String("resources", "", "docker stats JSONL")
+	bering := f.String("bering", "", "archived 100% Bering pipeline")
+	rate := f.Float64("rate", 0, "registered ingress rate")
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	if *summary == "" || *resources == "" || *bering == "" || *rate <= 0 {
+		return fmt.Errorf("k6-summary, resources, bering, and positive rate are required")
+	}
+	result, err := evaluation.Capacity(*summary, *resources, *bering, *rate)
+	if err != nil {
+		return err
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+		return err
+	}
+	if !result.Valid {
+		return fmt.Errorf("capacity checks failed")
 	}
 	return nil
 }

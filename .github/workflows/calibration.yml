@@ -1,0 +1,89 @@
+name: calibration
+on:
+  workflow_dispatch:
+    inputs:
+      rate:
+        description: Try 5 first; rerun at 2 only if registered capacity checks fail
+        type: choice
+        options: ['5', '2']
+        default: '5'
+      measured:
+        description: Requests per characterization run
+        type: choice
+        options: ['2000', '4000', '8000']
+        default: '4000'
+
+permissions: { contents: read }
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Require implemented pilot protocol
+        run: git rev-parse pilot-protocol-v1
+
+  characterize:
+    needs: guard
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { kind: stable, replicate: 1, weight: 0, persona: exact-60-40 }
+          - { kind: stable, replicate: 2, weight: 0, persona: exact-60-40 }
+          - { kind: stable, replicate: 3, weight: 0, persona: exact-60-40 }
+          - { kind: candidate, replicate: 1, weight: 100, persona: all-eligible }
+          - { kind: candidate, replicate: 2, weight: 100, persona: all-eligible }
+          - { kind: candidate, replicate: 3, weight: 100, persona: all-eligible }
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - name: Run isolated characterization
+        env:
+          EMAC_WEIGHT: ${{ matrix.weight }}
+          EMAC_N_MAX: ${{ inputs.measured }}
+          EMAC_RATE: ${{ inputs.rate }}
+          EMAC_PERSONA_MODE: ${{ matrix.persona }}
+          EMAC_RUN_SEED: calibration-${{ github.run_id }}-${{ matrix.kind }}-${{ matrix.replicate }}
+          EMAC_RUN_ID: calibration-${{ matrix.kind }}-${{ matrix.replicate }}
+        run: ./scripts/run-stage-ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: calibration-${{ matrix.kind }}-${{ matrix.replicate }}
+          path: results
+          if-no-files-found: error
+          retention-days: 90
+
+  freeze-candidate:
+    needs: characterize
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: calibration-*
+          path: calibration-inputs
+      - name: Apply the registered calibration rule
+        shell: bash
+        run: |
+          mapfile -t stable < <(find calibration-inputs/calibration-stable-* -path '*/policy/ledger.jsonl' | sort)
+          mapfile -t candidate < <(find calibration-inputs/calibration-candidate-* -path '*/policy/ledger.jsonl' | sort)
+          args=()
+          for path in "${stable[@]}"; do args+=(--stable-ledger "$path"); done
+          for path in "${candidate[@]}"; do args+=(--candidate-ledger "$path"); done
+          go run ./cmd/emacctl calibrate "${args[@]}" --out calibration.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: calibration-freeze-candidate
+          path: calibration.json
+          if-no-files-found: error
+          retention-days: 90
