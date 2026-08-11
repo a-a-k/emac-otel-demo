@@ -85,7 +85,29 @@ if [[ "${EMAC_INCREMENTAL:-false}" == true ]]; then
   done
 else
   total="$(jq '.requests | length' "$EMAC_RESULTS/stage-plan.json")"
-  run_k6_segment 0 "$total" "$EMAC_N_MAX"
+  measured="$(jq '[.requests[] | select(.phase == "measured" or .phase == "oracle")] | length' "$EMAC_RESULTS/stage-plan.json")"
+  run_k6_segment 0 "$total" "$measured"
+fi
+
+if [[ "${EMAC_PHASE:-measured}" == oracle ]]; then
+  # Oracle-only targets are isolated validation stages. The Collector's
+  # measured-trace selectors and policy metric recorder exclude this phase,
+  # so no oracle telemetry can enter Bering, Span Metrics, or controller state.
+  cleanup_archivers
+  trap - EXIT
+  boundary_args=(--ledger "$EMAC_RESULTS/policy/ledger.jsonl" --k6-log "$EMAC_RESULTS/k6.log")
+  if [[ -n "${EMAC_JOURNEY_DEADLINE_MS:-}" ]]; then
+    boundary_args+=(--deadline-ms "$EMAC_JOURNEY_DEADLINE_MS")
+  fi
+  "$EMAC_RESULTS/emacctl" reconcile-boundary "${boundary_args[@]}" > "$EMAC_RESULTS/boundary-reconciliation.json"
+  "$EMAC_RESULTS/emacctl" oracle-ledger \
+    --ledger "$EMAC_RESULTS/policy/ledger.jsonl" \
+    --phase oracle \
+    --weight "$EMAC_WEIGHT" \
+    --deadline-ms "$EMAC_JOURNEY_DEADLINE_MS" \
+    --n "$EMAC_N_MAX" \
+    --out "$EMAC_RESULTS/oracle.json"
+  exit 0
 fi
 
 ./scripts/stage-barrier.sh

@@ -25,8 +25,13 @@ all evaluation runs are defined as GitHub Actions workflows.
   composition or issue the active rollout decision.
 - the Collector feeds full-stream span metrics before nested `5⊂25⊂100`
   trace sampling; only the 100% pipeline is active.
-- `integration` runs a small end-to-end stage. `feasibility-pilot` refuses to
-  start until the commit is tagged `pilot-protocol-v1`.
+- `integration` runs a small end-to-end stage. `calibration`,
+  `feasibility-pilot`, and the active `causal-pilot` refuse to start until the
+  commit is tagged `pilot-protocol-v1`; `confirmatory-batch` additionally
+  requires the exact `protocol-v1` tag.
+- `causal-pilot` starts from the unconditional 10% canary, applies only Full
+  EmaC `PASS` transitions, and runs a fresh evidence-isolated oracle stage for
+  a target stopped by `BLOCK` or terminal `REVIEW`.
 
 ## Local checks
 

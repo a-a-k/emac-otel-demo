@@ -1,0 +1,48 @@
+name: causal-pilot
+on:
+  workflow_dispatch:
+    inputs:
+      n_max:
+        description: Registered feasibility-selected N_max
+        type: choice
+        options: ['1000', '2000', '4000', '8000', '12000', '16000', '20000']
+        default: '20000'
+      rate:
+        description: Frozen ingress rate
+        type: choice
+        options: ['5', '2']
+        default: '5'
+      seed:
+        description: Registered causal-pilot seed
+        type: string
+        default: causal-pilot-1
+
+permissions: { contents: read }
+
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - name: Require frozen pilot implementation and calibration
+        run: |
+          git rev-parse pilot-protocol-v1
+          test -s protocol/calibration-v1.json
+      - name: Execute active Full EmaC trajectory
+        env:
+          EMAC_N_MAX: ${{ inputs.n_max }}
+          EMAC_RATE: ${{ inputs.rate }}
+          EMAC_RUN_SEED: ${{ inputs.seed }}
+          EMAC_RUN_ID: causal-${{ github.run_id }}
+        run: ./scripts/run-causal-pilot.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: causal-pilot
+          path: causal-results
+          if-no-files-found: error
+          retention-days: 90
